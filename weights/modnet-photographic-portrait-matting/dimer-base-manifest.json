@@ -1,0 +1,15 @@
+{
+  "format": "dimer_hf_snapshot",
+  "formatVersion": 1,
+  "modelKey": "modnet-photographic-portrait-matting",
+  "modelId": "XM5354/Modnet_models",
+  "revision": "71aca6d04ed0267b4b12bde776868f2b9fb1d06f",
+  "files": [
+    {
+      "path": "modnet_photographic_portrait_matting.ckpt",
+      "bytes": 26255603,
+      "sha256": "7c22235f0925deba15d4d63e53afcb654c47055bbcd98f56e393ab2584007ed8"
+    }
+  ],
+  "totalBytes": 26255603
+}
