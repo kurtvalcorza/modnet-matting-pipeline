@@ -1,0 +1,2 @@
+# Snapshot files are digest-verified byte-for-byte against dimer-base-manifest.json; never convert their line endings.
+weights/** -text

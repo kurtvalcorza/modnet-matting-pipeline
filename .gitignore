@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+outputs/
+.DS_Store
+
+# Model weights are pulled locally; only the manifest is committable
+weights/**/*.safetensors
+weights/**/*.pt
+weights/**/*.pth
+weights/**/*.ckpt
+weights/**/*.bin
+weights/**/.cache/
+
+# the digest-pinned photographs are fetched at run time
+weights/portraits/
