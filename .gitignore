@@ -15,5 +15,3 @@ weights/**/*.ckpt
 weights/**/*.bin
 weights/**/.cache/
 
-# the digest-pinned photographs are fetched at run time
-weights/portraits/
