@@ -1,10 +1,8 @@
-"""Offline tests for the synthetic portrait renderer, the sample splits, the pinned photographs (injected fetcher),
-the split helpers and the BYOD zip loader. No model library is imported."""
+"""Offline tests for the synthetic portrait renderer, the sample splits, the photograph loader, the split helpers
+and the BYOD zip loader. No model library is imported."""
 
 from __future__ import annotations
 
-import hashlib
-import io
 import json
 import zipfile
 from pathlib import Path
@@ -14,14 +12,13 @@ import pytest
 
 from conftest import synthetic_records
 from modnet_matting_pipeline import (
-    PORTRAIT_RECORDS,
     SAMPLE_COUNTS,
     SAMPLE_SEEDS,
     SAMPLE_SIZE,
     check_split_disjoint,
     dataset_manifest,
-    fetch_portraits,
     load_byod_dataset,
+    load_photo,
     render_portrait,
     sample_dataset,
     split_dataset,
@@ -77,39 +74,18 @@ def test_split_helpers(forbid_model_imports):
         split_dataset(records[:2])
 
 
-def test_pinned_portraits_are_consistent_and_fetched_through_the_pin(tmp_path, forbid_model_imports):
-    assert len(PORTRAIT_RECORDS) == 4 and len({p["id"] for p in PORTRAIT_RECORDS}) == 4
-    for pin in PORTRAIT_RECORDS:
-        assert (
-            pin["url"].startswith("https://upload.wikimedia.org/wikipedia/commons/")
-            and len(pin["sha256"]) == 64
-            and pin["bytes"] > 0
-        )
+def test_load_photo_downscales_and_records_sizes(tmp_path, forbid_model_imports):
     from PIL import Image
 
-    fake = io.BytesIO()
-    Image.new("RGB", (4000, 3000), (200, 150, 120)).save(fake, format="JPEG")
-    payload = fake.getvalue()
-    pins = [{**PORTRAIT_RECORDS[0], "bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}, PORTRAIT_RECORDS[1]]
-    calls = []
-
-    def fetcher(url):
-        calls.append(url)
-        return payload
-
-    original = sm.PORTRAIT_RECORDS
-    sm.PORTRAIT_RECORDS = (pins[0],)
-    try:
-        records = fetch_portraits(tmp_path, fetcher=fetcher)
-        assert calls == [pins[0]["url"]] and len(records) == 1
-        assert records[0]["image"].shape == (1152, 1536, 3) and records[0]["original_size"] == [4000, 3000]
-        assert records[0]["loaded_size"] == [1536, 1152] and records[0]["license"].startswith("CC0")
-        assert fetch_portraits(tmp_path, fetcher=fetcher)[0]["id"] == pins[0]["id"] and len(calls) == 1  # cached
-        sm.PORTRAIT_RECORDS = (pins[1],)
-        with pytest.raises(ValueError, match="do not match the pinned"):
-            fetch_portraits(tmp_path, fetcher=fetcher)
-    finally:
-        sm.PORTRAIT_RECORDS = original
+    Image.new("RGB", (4000, 3000), (200, 150, 120)).save(tmp_path / "big.jpg", quality=80)
+    record = load_photo(tmp_path / "big.jpg", record_id="own")
+    assert record["id"] == "own" and record["image"].shape == (1152, 1536, 3) and record["image"].dtype == np.uint8
+    assert record["original_size"] == [4000, 3000] and record["loaded_size"] == [1536, 1152] and record["source"] == "big.jpg"
+    Image.new("L", (300, 200), 90).save(tmp_path / "grey.png")
+    small = load_photo(tmp_path / "grey.png")
+    assert small["image"].shape == (200, 300, 3) and small["loaded_size"] == [300, 200]
+    with pytest.raises(FileNotFoundError):
+        load_photo(tmp_path / "nowhere.jpg")
 
 
 def test_byod_zip_loader_and_writers(tmp_path, forbid_model_imports):

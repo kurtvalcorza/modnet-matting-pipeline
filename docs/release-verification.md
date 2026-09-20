@@ -28,14 +28,15 @@ CI runs `tools/validate_release_assets.py`, which checks:
 - the profile-specific public-API calls (`stage_missing_files`, `verify_snapshot`,
   `ModNetMattingPipeline.from_pretrained(weights_dir=..., device=..., report=print)` so the pickle audit and the
   conversion are printed before the model loads, `sample_dataset`, `load_byod_dataset`, `dataset_manifest`,
-  `write_sample_pair`, `fetch_portraits` from the pinned cache path, `validate_dataset` with the refusal probes,
-  `pipe.evaluate` on the frozen model and after adaptation with the assertions, `pipe.predict` on the photographs
-  before and after adaptation, `pipe.adapt` with its explicit hyperparameters, `pipe.save_artifact`,
+  `write_sample_pair`, `validate_dataset` with the refusal probes, `pipe.evaluate` on the frozen model and after
+  adaptation with the assertions, `pipe.predict` on two held-out portraits before and after adaptation with their
+  mattes and cut-outs written, `load_photo` behind the photograph gate, `pipe.adapt` with its explicit hyperparameters,
+  `pipe.save_artifact`,
   `ModNetMattingPipeline.from_artifact` and the reload-parity assertion, and the provenance fields
-  `served_from_pickle: False`, `remote_code_executed: False`, the Drive file id, the upstream code commit and the
-  photograph licence), the expected `outputs/` paths, the learner-facing statements (the asset is a pickle
-  unpickled once, the labelled portraits are drawn, the constant baselines, uncalibrated mattes, frozen BatchNorm,
-  watch the photographs after adaptation, CC0) and the gated-off BYOD default; forbidden patterns (credential-in-URL,
+  `served_from_pickle: False`, `remote_code_executed: False`, the Drive file id, the upstream code commit, the
+  labelled-data source and `photographs_downloaded: 0`), the expected `outputs/` paths, the learner-facing statements (the asset is a pickle
+  unpickled once, the portraits are drawn, the default path downloads no image, the constant baselines, uncalibrated
+  mattes, frozen BatchNorm, watch a real photograph after adaptation) and the two gated-off BYOD defaults; forbidden patterns (credential-in-URL,
   any `git clone` / `github.com` / repository import on the primary path, a mutable `revision='main'`, direct
   `huggingface_hub` / `safetensors` / `urllib` / `zipfile` / `Unpickler` use, `MODNet(` construction or
   `torch.load(` / `pickle.load` **outside the carried module cells**, `trust_remote_code=True`, `pickle.load` or
@@ -49,7 +50,7 @@ CI also runs `ruff check src tests tools`, `tools/build_notebook.py --check`, an
 (`tests/test_pipeline.py`, `tests/test_samples.py`, `tests/test_adaptation.py` (stub model, skipped without torch),
 `tests/test_role_helpers.py`, `tests/test_import_boundary.py`, `tests/test_notebook_parity.py`,
 `tests/test_model_backed.py` (skipped without the staged weights); crafted pickles in three layouts, temporary
-manifests, synthetic portraits, an injected photograph fetcher, a BYOD zip with a decoy member, no weights). These are
+manifests, synthetic portraits, a synthetic photograph through the loader, a BYOD zip with a decoy member, no weights). These are
 source/provenance and unit checks. They are **not** execution evidence.
 
 ## Executor paths
@@ -67,12 +68,12 @@ Before changing the registry status from `Candidate` to `Release-grade`:
 1. resolve the exact PR/commit head under review and confirm static CI is green;
 2. open that exact notebook revision in a new runtime (Colab, or a fresh-container executor above) with
    **no repository checkout**, an empty Hugging Face cache, and no pre-staged files under the working-directory
-   snapshot `weights/modnet-photographic-portrait-matting/` or the photograph cache `weights/portraits/` (the standalone
-   path writes the manifest itself, stages the checkpoint from the Hub, audits and converts it, renders the labelled
-   portraits and fetches the four photographs by pinned URL, so neither directory may be seeded); the runtime needs
-   about 200 MB of free disk;
+   snapshot `weights/modnet-photographic-portrait-matting/` (the standalone path writes the manifest itself, stages the
+   checkpoint from the Hub, audits and converts it and renders the labelled portraits, so the directory may not be
+   seeded); the runtime needs about 100 MB of free disk;
 3. run the notebook top-to-bottom without editing implementation cells (form parameters at their defaults:
-   `USE_BYOD = False`, `EPOCHS = 6`, `LEARNING_RATE = 1e-4`, `BATCH_SIZE = 4`, `TRAINABLE = 'branches'`);
+   `USE_BYOD = False`, `EPOCHS = 6`, `LEARNING_RATE = 1e-4`, `BATCH_SIZE = 4`, `TRAINABLE = 'branches'`,
+   `USE_BYOD_PHOTO = False`);
 4. verify that Section 1 reports `NOTEBOOK_SOURCE.repository_revision` equal to the revision recorded in
    `metadata.dimer.generated_from` and that the installed core package versions equal the inline `PINS`
    (= `pyproject.toml`): `torch==2.14.0`, `numpy==2.5.3`, `pillow==11.3.0`, `safetensors==0.8.0`,
@@ -82,7 +83,7 @@ Before changing the registry status from `Candidate` to `Release-grade`:
    - pinned runtime installed from the inline `PINS` with no GitHub access;
    - the four carried module cells execute (defining `ModNetMattingPipeline`, `MODNet`, `audit_pickle`, `convert_model`,
      `build_model`, `verify_snapshot`, `verify_converted`, `stage_missing_files`, `validate_inputs`,
-     `validate_dataset`, `trimap_from_alpha`, `render_portrait`, `sample_dataset`, `fetch_portraits`,
+     `validate_dataset`, `trimap_from_alpha`, `render_portrait`, `sample_dataset`, `load_photo`,
      `load_byod_dataset`, `write_sample_pair`, `write_dataset_csv`, `dataset_manifest`, `matting_metrics`,
      `constant_baselines`) with no import of the repository package;
    - the inline manifest asserted against the module's constants, then `stage_missing_files(..., allow_download=True)`
@@ -94,28 +95,26 @@ Before changing the registry status from `Candidate` to `Release-grade`:
      tensors) and the converted file (`0ec6d832…`, 26,135,396 bytes), then the load report with source "converted
      from the manifest-verified source checkpoint";
    - the dataset manifest with 48 / 12 / 20 portraits (foreground fractions about 0.34, fractional-alpha fractions
-     about 0.02), the written sample pair and `outputs/modnet_matting_sample_pairs.csv`, the four photographs with
-     their sizes and licence, and three refusals (alpha outside [0, 1], labelled record not 512 × 512, all-background
-     alphas);
+     about 0.02), the written sample pair and `outputs/modnet_matting_sample_pairs.csv`, and three refusals (alpha
+     outside [0, 1], labelled record not 512 × 512, all-background alphas);
    - the constant baselines and the frozen model on the test portraits (on the sample: all-background MAD ≈ 0.34,
      all-foreground ≈ 0.66, frozen MAD ≈ 0.08, unknown-band MAD ≈ 0.085) and the validation portraits (MAD ≈ 0.064),
-     and the four photographs matted with foreground fractions about 0.40 / 0.44 / 0.72 / 0.84 and their frozen mattes
-     and cut-outs written;
+     and the frozen and reference mattes and cut-outs of the first two test portraits written;
    - `pipe.adapt` printing epoch 0 as the frozen model, 4,263,203 trainable of 6,487,075 parameters, 72 steps,
      frozen BatchNorm statistics, and a six-epoch history with validation loss ≈ 0.80 → ≈ 0.06 at the kept epoch;
    - `pipe.evaluate` on the test portraits with the four-way comparison and
      `outputs/modnet_matting_evaluation_report.json` written (the cell asserts the kept epoch's validation loss is no
      higher than the frozen model's, that the validation MAD matches the history within 0.001, and that the adapted
      test MAD is below the frozen one — on the sample ≈ 0.004 against ≈ 0.08);
-   - the four photographs matted again with the frozen-versus-adapted matte differences printed (on the sample
-     0.004–0.05) and `outputs/modnet_matting_predictions.json` written;
+   - the two portraits matted again by the adapted model with their per-portrait MAD before and after printed, the
+     photograph gate skipped (`own_photograph: null`), and `outputs/modnet_matting_predictions.json` written;
    - `pipe.save_artifact` writing `outputs/modnet_matting_adapter/{adapter.safetensors,manifest.json}`
      (about 17 MB), and `ModNetMattingPipeline.from_artifact` reloading it with held-out metrics and mattes matching
      the adapted model (the cell asserts a MAD difference below 10⁻⁴ and a maximum matte difference below 10⁻³);
    - `outputs/modnet_matting_result.json` written with `NOTEBOOK_SOURCE`, the model identity, the provenance block
      (`served_from_pickle: false`, `remote_code_executed: false`, the Drive file id, the upstream code commit, the
-     audit digest, the converted digest, the photograph pins and licence), the runtime versions, the comparison, the
-     photograph drift and the reload parity;
+     audit digest, the converted digest, the labelled-data source and `photographs_downloaded: 0`), the runtime
+     versions, the comparison and the reload parity;
 6. verify the exports exist and the interpretation section matches the observed path;
 7. record the notebook Git blob id, commit, runtime (platform, Python, PyTorch, device), the model identifier and
    immutable revision, whether the model cache, the weights directory and the photograph cache were clean, outcome,
@@ -129,7 +128,8 @@ A known-failing default path in the supported runtime blocks release (REL11).
 
 | Notebook | Commit / notebook blob | Date (UTC) | Executor | Outcome |
 |---|---|---|---|---|
-| `modnet_matting_colab.ipynb` | generated, pre-commit | 2026-09-20 | Local pre-flight harness (WSL, CPython 3.12.3, CUDA RTX 5070 Ti, `google.colab` shim, pins pre-installed) | PASS — pre-flight only, **not** promotion evidence |
+| `modnet_matting_colab.ipynb` | generated, pre-commit | 2026-09-20 | Local pre-flight harness (WSL, CPython 3.12.3, CUDA RTX 5070 Ti, `google.colab` shim, pins pre-installed) | PASS — pre-flight of the first blob, which still fetched four Commons photographs; pre-flight only, **not** promotion evidence |
+| `modnet_matting_colab.ipynb` | generated, pre-commit (photograph-free) | 2026-09-20 | Local pre-flight harness (WSL, CPython 3.12.3, CUDA RTX 5070 Ti, `google.colab` shim, pins pre-installed) | PASS — pre-flight only, **not** promotion evidence |
 
 ## Recorded executions
 
@@ -140,7 +140,9 @@ runtime, not general estimates.
 
 | Date (UTC) | Commit / notebook blob | Executor | Path exercised | Wall | Outcome |
 |---|---|---|---|---|---|
-| 2026-09-20 | generated, pre-commit | Local pre-flight harness (WSL, CPython 3.12.3, `torch 2.14.0+cu130`, RTX 5070 Ti, `pillow 11.3.0`, `numpy 2.5.3`) | Default sample path (stage → verify → load the already-converted file → render 80 portraits → validate → refusal probes → photographs → baselines + frozen evaluation → branches adapt → evaluate → photographs again → export → reload); the checkpoint, the converted safetensors and the photographs were pre-staged, so `stage_missing_files` fetched 0 of 1 entries | 35.5 s | **PASSED** — 11/11 code cells; probes refused; test MAD 0.0795 (frozen) → 0.0042 (adapted), MSE 0.0750 → 0.0015, SAD 20.84 → 1.09, unknown-band MAD 0.0855 → 0.0249 (all-background baseline 0.341 / all-foreground 0.659); validation loss 0.8008 → 0.0592 (best epoch 4), validation MAD 0.0640 → 0.0040; adaptation 13.4 s / 72 steps; photograph drift 0.052 / 0.004 / 0.016 / 0.006; adapter 17,060,652 bytes; reload parity identical (mad_diff 0.0, max_abs_matte_diff 0.0) |
+| 2026-09-20 | generated, pre-commit (first blob, with the Commons photographs) | Local pre-flight harness (WSL, CPython 3.12.3, `torch 2.14.0+cu130`, RTX 5070 Ti, `pillow 11.3.0`, `numpy 2.5.3`) | Default sample path of the first blob (stage → verify → load the already-converted file → render 80 portraits → validate → refusal probes → four photographs → baselines + frozen evaluation → branches adapt → evaluate → photographs again → export → reload); the checkpoint, the converted safetensors and the photographs were pre-staged | 35.5 s | **PASSED** — 11/11 code cells; probes refused; test MAD 0.0795 (frozen) → 0.0042 (adapted), MSE 0.0750 → 0.0015, SAD 20.84 → 1.09, unknown-band MAD 0.0855 → 0.0249 (all-background baseline 0.341 / all-foreground 0.659); validation loss 0.8008 → 0.0592 (best epoch 4), validation MAD 0.0640 → 0.0040; adaptation 13.4 s / 72 steps; photograph drift (mean abs matte difference frozen vs adapted) 0.052 / 0.004 / 0.016 / 0.006; adapter 17,060,652 bytes; reload parity identical (mad_diff 0.0, max_abs_matte_diff 0.0) |
+| 2026-09-20 | generated, pre-commit (photograph-free) | Local pre-flight harness (WSL, CPython 3.12.3, `torch 2.14.0+cu130`, RTX 5070 Ti, `pillow 11.3.0`, `numpy 2.5.3`) | Default sample path (stage → verify → load the already-converted file → render 80 portraits → validate → refusal probes → baselines + frozen evaluation with written mattes → branches adapt → evaluate → adapted mattes, photograph gate off → export → reload); the checkpoint and the converted safetensors were pre-staged, so `stage_missing_files` fetched 0 of 1 entries | 30.8 s | **PASSED** — 11/11 code cells; probes refused; test MAD 0.0795 (frozen) → 0.0042 (adapted), unknown-band MAD 0.0855 → 0.0249; validation loss 0.8008 → 0.0601 (best epoch 4), validation MAD 0.0640 → 0.0041; adaptation 72 steps; reload parity identical |
+| 2026-09-20 | `dd05b34` / `99d5ff30` (first blob) | Kaggle Tesla T4 (`kurtvalcorza/dimer-nb2-modnet-matting` v1, image `torch 2.10.0+cu128` before the pinned install, `torch 2.14.0+cu130` after, Python 3.12.13, `cuda`) | Default sample path of the first blob from a fresh interpreter with an empty Hugging Face cache and no repository checkout; install, audit, conversion, load and the 80 rendered portraits succeeded | 193.5 s | **FAILED** — 6/11 code cells; `HTTP Error 429: Too many requests` from `upload.wikimedia.org` on the third of four photograph downloads (Wikimedia Commons throttles shared cloud runtimes). Finding, not a model defect: the photographs were removed from the default path (this blob) rather than re-hosted |
 
 ## Current status
 

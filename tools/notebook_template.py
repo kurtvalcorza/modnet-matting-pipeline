@@ -6,10 +6,10 @@ by the generator from repository sources so they cannot drift from the package.
 
 This template configures an E2E portrait-matting workflow: the pinned MODNet checkpoint (a legacy torch pickle)
 is digest-verified, statically audited and converted once into safetensors, 80 synthetic portraits with exact alpha
-mattes are rendered in the kernel and four digest-pinned CC0 photographs are fetched, the frozen model is scored
-against the constant baselines and shown on the photographs, a bounded fine-tuning of the matting branches runs in
-the kernel, the held-out portraits are scored again, the photographs are matted again, and the adapter is exported
-and reloaded.
+mattes are rendered in the kernel, the frozen model is scored against the constant baselines, a bounded fine-tuning
+of the matting branches runs in the kernel, the held-out portraits are scored again, mattes and cut-outs are written,
+an optional own photograph is matted, and the adapter is exported and reloaded. The default path downloads nothing
+but the checkpoint.
 """
 # ruff: noqa: E501  -- markdown prose and code-cell text are kept on single lines for readable rendering
 
@@ -51,37 +51,28 @@ TEMPLATE = {
         "huggingface-hub), stages and digest-verifies the pinned MODNet checkpoint (25 MB) from the Hub, statically audits the legacy "
         "torch pickle against an allow-list, converts it once into safetensors with a pinned digest, builds the vendored architecture and "
         "loads it strictly, renders 80 synthetic portraits with exact alpha mattes in the kernel (48 training, 12 validation, 20 test), "
-        "fetches four digest-pinned CC0 photographs (9.3 MB, no credential), scores the frozen model against the all-background and "
-        "all-foreground baselines and mattes the photographs, runs a bounded fine-tuning of the matting branches, scores the same held-out "
-        "portraits again, mattes the photographs again, exports the adapter as safetensors with a manifest, and reloads that artifact into "
-        "a fresh pipeline to verify prediction parity. The default path needs no repository clone, no DIMER worker or service, no "
-        "credential, no upload dialog and no configuration edit (NOTEBOOK_SPEC 2.0 §5). On a T4 the model time is under a minute; on a "
-        "CPU the adaptation takes a few minutes."
+        "scores the frozen model against the all-background and all-foreground baselines and writes its mattes and cut-outs of two held-out "
+        "portraits, runs a bounded fine-tuning of the matting branches, scores the same held-out portraits again, writes the adapted "
+        "mattes and cut-outs, exports the adapter as safetensors with a manifest, and reloads that artifact into a fresh pipeline to verify "
+        "prediction parity. The default path needs no repository clone, no DIMER worker or service, no credential, no upload dialog and "
+        "no configuration edit (NOTEBOOK_SPEC 2.0 §5), and downloads nothing but the checkpoint. On a T4 the model time is under a "
+        "minute; on a CPU the adaptation takes a few minutes."
     ),
     "byod": (
-        "After the tutorial workflow completes, set `USE_BYOD = True` in Section 4 and re-run from that cell to supply your own labelled "
-        "portraits as a zip holding `pairs.csv` (columns `id`, `image`, `alpha`) beside RGB images and 8-bit greyscale alpha PNGs "
-        "(0 = background, 255 = subject); at least four pairs. Pairs are resized to 512 × 512, split by seed into training, validation "
-        "and test sets and flow through the same contract — validation, frozen baseline, adaptation, held-out evaluation, inference, "
-        "artifact export and reload parity. The expected schema, the ceilings and the privacy guidance are stated in the Prerequisites "
-        "and in Section 4, and uploaded files stay inside this runtime. BYOD is optional and never part of the default path."
+        "Two gates, both off by default. After the tutorial workflow completes, set `USE_BYOD = True` in Section 4 and re-run from that "
+        "cell to supply your own labelled portraits as a zip holding `pairs.csv` (columns `id`, `image`, `alpha`) beside RGB images and "
+        "8-bit greyscale alpha PNGs (0 = background, 255 = subject); at least four pairs. Pairs are resized to 512 × 512, split by seed "
+        "into training, validation and test sets and flow through the same contract — validation, frozen baseline, adaptation, held-out "
+        "evaluation, inference, artifact export and reload parity. Set `USE_BYOD_PHOTO = True` in Section 8 to upload one photograph of "
+        "your own and matte it with the frozen and the adapted model (no label needed). The expected schemas, the ceilings and the "
+        "privacy guidance are stated in the Prerequisites and in Sections 4 and 8, and uploaded files stay inside this runtime. BYOD is "
+        "optional and never part of the default path."
     ),
     "pipeline_class": "ModNetMattingPipeline",
     "model_load": "ModNetMattingPipeline.from_pretrained(weights_dir=WEIGHTS_DIR, device=('cuda' if torch.cuda.is_available() else 'cpu'), report=print)",
     "weights_key": "modnet-photographic-portrait-matting",
     "modules": ["pipeline.py", "samples.py", "metrics.py", "modeling.py"],
     "entry_module": "pipeline.py",
-    # ST2: both `__file__`-relative directories become working-directory-relative in the standalone kernel.
-    "rewrites": [
-        [
-            r"^DEFAULT_WEIGHTS_DIR = Path\(__file__\)[^\n]*$",
-            'DEFAULT_WEIGHTS_DIR = Path.cwd() / "weights" / MODEL_KEY  # standalone rewrite (build_notebook.py): working-directory-relative',
-        ],
-        [
-            r"^DEFAULT_PORTRAIT_DIR = Path\(__file__\)[^\n]*$",
-            'DEFAULT_PORTRAIT_DIR = Path.cwd() / "weights" / "portraits"  # standalone rewrite (build_notebook.py): working-directory-relative',
-        ],
-    ],
     "runtime_imports": ["torch", "PIL"],
     "title": "MODNet portrait matting — DIMER E2E matting fine-tuning tutorial (standalone)",
     "badges": BADGES,
@@ -96,33 +87,34 @@ TEMPLATE = {
         "pickle streams followed by raw tensor bytes. Section 3 downloads and digest-verifies it, statically lists every global those "
         "streams would import (a state dict of tensors and nothing else), refuses anything outside that allow-list, unpickles it exactly "
         "once through torch's weights-only loader, and writes a safetensors file whose digest is pinned in the carried module; the model "
-        "you run is the architecture vendored in the carried `modeling.py` and loads that file strictly. **The labelled portraits are "
-        "drawn, not photographed**: no portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free of "
-        "personal-data concerns, so Section 4 renders figures — head, shoulders, a hair cap and dozens of hair strands with fractional "
-        "coverage — over generated backgrounds with an exact alpha. They are out of the photographic training domain on purpose: the "
-        "frozen model's error on them, the adapted model's error, and the model's behaviour on four real CC0 photographs before and after "
-        "adaptation are the tutorial's evidence; the point of the contract is the same recipe on *your* labelled portraits."
+        "you run is the architecture vendored in the carried `modeling.py` and loads that file strictly. **The portraits are drawn, not "
+        "photographed**: no portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free of personal-data "
+        "concerns, and public-domain photographs cannot be fetched reliably from shared cloud runtimes, so Section 4 renders figures — "
+        "head, shoulders, a hair cap and dozens of hair strands with fractional coverage — over generated backgrounds with an exact alpha, "
+        "and the default path downloads no image at all. They are out of the photographic training domain on purpose: the frozen model's "
+        "error on them and the adapted model's error are the tutorial's evidence; a real portrait enters only through the photograph "
+        "gate in Section 8, and the point of the contract is the same recipe on *your* labelled portraits."
     ),
     "learning_objectives": (
         "install the pinned runtime; inspect the carried pipeline, dataset, metrics and model modules; stage and digest-verify a legacy "
         "pickled checkpoint, read its static audit and see it converted into safetensors; render labelled portraits with exact mattes and "
         "validate them with refusal probes; read MAD, MSE, SAD and the unknown-band MAD against constant baselines; run a bounded "
         "fine-tuning with the upstream semantic / detail / matte losses, explicit hyperparameters and frozen BatchNorm statistics; compare "
-        "the adapted and frozen models on the same held-out portraits and on real photographs; and export a safetensors adapter that "
+        "the adapted and frozen models on the same held-out portraits; write mattes and cut-outs; and export a safetensors adapter that "
         "reloads against the pinned base with verified parity."
     ),
     "exclusions": (
         "video matting, the self-supervised SOC adaptation of the paper, trimap-based matting, background replacement quality beyond a "
-        "simple composite, the published PPM-100 benchmark scores, face detection or recognition, and any claim that 20 drawn portraits "
-        "stand in for an evaluation on photographs. The repository exposes none of these."
+        "simple composite, the published PPM-100 benchmark scores, face detection or recognition, any evaluation on photographs, and any "
+        "claim that 20 drawn portraits stand in for one. The repository exposes none of these."
     ),
     "prerequisites": [
-        "- **Runtime:** a fresh supported runtime — Google Colab (CPU or T4), Kaggle, or a Jupyter kernel with Python 3.12. The model has 6.5 M parameters: a 512 × 512 matte takes well under a second on a CPU, the default adaptation about 2 s per epoch on a T4 and about half a minute per epoch on a laptop CPU. About 200 MB of disk is needed for the checkpoint, its conversion and the photographs.",
+        "- **Runtime:** a fresh supported runtime — Google Colab (CPU or T4), Kaggle, or a Jupyter kernel with Python 3.12. The model has 6.5 M parameters: a 512 × 512 matte takes well under a second on a CPU, the default adaptation about 2 s per epoch on a T4 and about half a minute per epoch on a laptop CPU. About 100 MB of disk is needed for the checkpoint and its conversion.",
         "- **Knowledge:** what an alpha matte is (per-pixel opacity of the subject, fractional along hair and soft edges), what a trimap's unknown band is, and how MAD / MSE / SAD are read against a constant baseline.",
         "- **Executable serialization handled explicitly:** the pinned checkpoint is a legacy torch pickle. It is digest-verified, statically audited against an allow-list (audit digest pinned) and unpickled **once** through torch's weights-only loader to produce the safetensors the model is actually loaded from. No Hub-hosted Python module is imported; the architecture is carried verbatim from the repository (`modeling.py`, vendored from the upstream repository at a pinned commit).",
         "- **Data contract:** a record is `{{id, image, alpha}}` — an RGB uint8 image (any size with both sides in [64, 4096] for inference; exactly 512 × 512 for labelled records) and an alpha in [0, 1] of the same size. Validation is structural: nothing checks that the image shows a person, that the alpha belongs to the image, or that the alpha marks the subject rather than something else.",
-        "- **Privacy:** Do not upload confidential or restricted data to a hosted runtime unless you are authorized to process it there — photographs of identifiable people you have no consent to process are exactly that. The default path uploads nothing; its four photographs are CC0 stock portraits.",
-        "- **External access (data):** besides the model snapshot, the default path fetches four pinned objects over HTTPS — CC0 portrait photographs from Wikimedia Commons (Pixabay uploads; 9.3 MB in total), each refused on a size or SHA-256 mismatch. The labelled portraits are rendered in the kernel and need no download.",
+        "- **Privacy:** Do not upload confidential or restricted data to a hosted runtime unless you are authorized to process it there — photographs of identifiable people you have no consent to process are exactly that. The default path uploads nothing and fetches no photograph.",
+        "- **External access (data):** none. The labelled portraits are rendered in the kernel; the only download on the default path is the model snapshot below.",
     ],
     "cells": [
         {
@@ -132,12 +124,11 @@ TEMPLATE = {
                 "portraits from three disjoint seed ranges, each drawn at 1024 × 1024 and box-filtered to 512 × 512 so that every hair "
                 "strand and silhouette edge carries fractional alpha, composited as alpha · figure + (1 − alpha) · background. "
                 "`dataset_manifest` validates every split with the same checker the model path uses, refuses a portrait present in two "
-                "splits and records a digest; `fetch_portraits` downloads the four CC0 photographs (each refused on a size or digest "
-                "mismatch) and downscales them once for the record.\n\n"
+                "splits and records a digest.\n\n"
                 "Look for: 48 / 12 / 20 records with foreground fractions around 0.34 and 2 % fractional-alpha pixels, a written "
-                "sample pair (`outputs/{stem}_sample_portrait.png` + `_sample_alpha.png`, the BYOD shape), the four photographs with "
-                "their original and loaded sizes, and three refusal probes — an alpha outside [0, 1], a labelled record that is not "
-                "512 × 512, and a dataset whose alphas are all background — each rejected before the model runs."
+                "sample pair (`outputs/{stem}_sample_portrait.png` + `_sample_alpha.png`, the BYOD shape), and three refusal probes — "
+                "an alpha outside [0, 1], a labelled record that is not 512 × 512, and a dataset whose alphas are all background — "
+                "each rejected before the model runs."
             ),
             "code": (
                 "import json\n"
@@ -166,9 +157,6 @@ TEMPLATE = {
                 "print({{'first_test_record': validate_inputs(test_records[0])}})\n"
                 "sample_pair = write_sample_pair(test_records[0], 'outputs/{stem}_sample_portrait.png', 'outputs/{stem}_sample_alpha.png')\n"
                 "print({{'sample_pair': sample_pair, 'pairs_csv': str(write_dataset_csv(test_records, 'outputs/{stem}_sample_pairs.csv'))}})\n\n"
-                "portraits = fetch_portraits(cache_dir='weights/portraits')\n"
-                "for record in portraits:\n"
-                "    print({{'photograph': record['id'], 'title': record['title'], 'original_size': record['original_size'], 'loaded_size': record['loaded_size'], 'license': record['license']}})\n\n"
                 "print({{'validation': INPUT_SCHEMA['validation']}})\n"
                 "probes = {{\n"
                 "    'alpha outside [0, 1]': [{{**test_records[0], 'alpha': test_records[0]['alpha'] * 1.5}}, *test_records[1:4]],\n"
@@ -185,7 +173,7 @@ TEMPLATE = {
         },
         {
             "md": (
-                "## 5. The frozen model: constant baselines, held-out errors and the photographs\n\n"
+                "## 5. The frozen model: constant baselines and held-out errors\n\n"
                 "`pipe.predict` normalises each image to [−1, 1], resizes it as the upstream inference script does (short side 512, both "
                 "sides multiples of 32), runs the three branches and returns the fusion branch's sigmoid output as the matte at the input "
                 "size — the model's output, not a calibrated probability. `pipe.evaluate` scores labelled records per image and averages: "
@@ -194,10 +182,9 @@ TEMPLATE = {
                 "baselines** — every pixel background, every pixel subject — are scored on the same references, so all-background MAD "
                 "equals the foreground fraction.\n\n"
                 "Look for: a frozen test MAD near 0.08 (in the build record 0.079, against 0.341 for all-background and 0.659 for "
-                "all-foreground) — the photographic model finds the drawn heads but drops parts of the drawn clothing and misses strands — "
-                "and, on the four photographs, mattes whose foreground fractions run from about 0.40 (the man with the pipe against a "
-                "dark background) to 0.84 (a face filling the frame); the frozen mattes are written to `outputs/` as PNGs beside a cut-out "
-                "on white. These are sample-sanity numbers on 20 and 12 drawn portraits, not a benchmark."
+                "all-foreground) — the photographic model finds the drawn heads but drops parts of the drawn clothing and misses strands. "
+                "The frozen mattes and cut-outs on white of the first two test portraits are written to `outputs/` beside their exact "
+                "alphas, so the failure can be seen. These are sample-sanity numbers on 20 and 12 drawn portraits, not a benchmark."
             ),
             "code": (
                 "import time\n\n"
@@ -216,11 +203,13 @@ TEMPLATE = {
                 "print({{'frozen_validation': frozen_val['model']}})\n"
                 "for row in frozen_test['per_image'][:5]:\n"
                 "    print({{'portrait': row['id'], 'mad': row['mad'], 'mad_unknown': row['mad_unknown']}})\n"
-                "frozen_photos = pipe.predict(portraits)\n"
-                "for record, pred in zip(portraits, frozen_photos['predictions']):\n"
+                "shown_records = test_records[:2]\n"
+                "frozen_shown = pipe.predict(shown_records)\n"
+                "for record, pred in zip(shown_records, frozen_shown['predictions']):\n"
                 "    write_matte(record, pred['alpha'], 'frozen')\n"
-                "    print({{'photograph': record['id'], 'model_size': pred['model_size'], 'foreground_fraction': pred['foreground_fraction'], 'note': 'no label; sanity check'}})\n"
-                "print({{'output': frozen_photos['output'], 'alpha_shape': frozen_photos['predictions'][0]['alpha'].shape, 'seconds': frozen_photos['seconds']}})"
+                "    write_matte(record, record['alpha'], 'reference')\n"
+                "    print({{'portrait': record['id'], 'model_size': pred['model_size'], 'foreground_fraction_frozen': pred['foreground_fraction'], 'foreground_fraction_reference': round(float(record['alpha'].mean()), 4)}})\n"
+                "print({{'output': frozen_shown['output'], 'alpha_shape': frozen_shown['predictions'][0]['alpha'].shape, 'seconds': frozen_shown['seconds']}})"
             ),
         },
         {
@@ -303,13 +292,13 @@ TEMPLATE = {
         },
         {
             "md": (
-                "## 8. The photographs again, artifact export and fresh reload\n\n"
-                "The adapted model mattes the same four photographs; they carry no label, so the comparison is the mean absolute "
-                "difference between the frozen and the adapted matte per photograph and the foreground fractions side by side — a "
-                "sanity check on whether learning the drawing style moved the model on real portraits (the build record: differences of "
-                "0.004–0.05; on the man with the pipe the adapted matte took in dark background beside the body, the silhouettes "
-                "themselves stayed), not an evaluation. The adapted mattes and cut-outs are written next to the "
-                "frozen ones.\n\n"
+                "## 8. Adapted mattes, an optional photograph of your own, artifact export and fresh reload\n\n"
+                "The adapted model mattes the same two held-out portraits as Section 5; their adapted mattes and cut-outs are written "
+                "next to the frozen ones and the exact alphas, and the per-portrait MAD before and after is printed. Set "
+                "`USE_BYOD_PHOTO = True` to upload one photograph of your own (JPEG or PNG; it is downscaled once to 1536 pixels on the "
+                "long side and never leaves this runtime): the frozen and the adapted model both matte it, the two mattes and cut-outs "
+                "are written, and the mean absolute difference between them is printed — an unlabelled sanity check on whether learning "
+                "the drawing style moved the model on a real portrait, not an evaluation. The default path uploads nothing.\n\n"
                 "`pipe.save_artifact` writes the trained tensors (about 17 MB) as `adapter.safetensors`, with a `manifest.json` recording "
                 "the artifact format, the base model id and revision, the digest of the converted base file, the adaptation scope, the "
                 "tensor names, the file size and SHA-256, the training configuration and the epoch history (OUT8). "
@@ -320,15 +309,28 @@ TEMPLATE = {
             "code": (
                 "import platform\n"
                 "import shutil\n\n"
-                "adapted_photos = pipe.predict(portraits)\n"
-                "photo_drift = []\n"
-                "for record, before, after in zip(portraits, frozen_photos['predictions'], adapted_photos['predictions']):\n"
+                "USE_BYOD_PHOTO = False  # @param {{type:\"boolean\"}}\n\n"
+                "adapted_shown = pipe.predict(shown_records)\n"
+                "for record, before, after in zip(shown_records, frozen_shown['predictions'], adapted_shown['predictions']):\n"
                 "    write_matte(record, after['alpha'], 'adapted')\n"
-                "    drift = {{'photograph': record['id'], 'foreground_fraction_frozen': before['foreground_fraction'], 'foreground_fraction_adapted': after['foreground_fraction'], 'mean_abs_matte_difference': round(float(np.abs(after['alpha'] - before['alpha']).mean()), 4)}}\n"
-                "    photo_drift.append(drift)\n"
-                "    print({{**drift, 'note': 'no label; sanity check'}})\n"
+                "    print({{'portrait': record['id'], 'mad_frozen': round(float(np.abs(before['alpha'] - record['alpha']).mean()), 4), 'mad_adapted': round(float(np.abs(after['alpha'] - record['alpha']).mean()), 4)}})\n"
+                "photo_report = None\n"
+                "if USE_BYOD_PHOTO:\n"
+                "    from google.colab import files\n"
+                "    uploaded_photo = files.upload()\n"
+                "    photo_name, photo_payload = next(iter(uploaded_photo.items()))\n"
+                "    photo_path = Path('work') / photo_name\n"
+                "    photo_path.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    photo_path.write_bytes(photo_payload)\n"
+                "    photo = load_photo(photo_path, record_id='own-photograph')\n"
+                "    frozen_photo = ModNetMattingPipeline.from_pretrained(weights_dir=WEIGHTS_DIR, device=pipe.device).predict([photo])['predictions'][0]\n"
+                "    adapted_photo = pipe.predict([photo])['predictions'][0]\n"
+                "    write_matte(photo, frozen_photo['alpha'], 'frozen')\n"
+                "    write_matte(photo, adapted_photo['alpha'], 'adapted')\n"
+                "    photo_report = {{'source': photo['source'], 'original_size': photo['original_size'], 'loaded_size': photo['loaded_size'], 'model_size': adapted_photo['model_size'], 'foreground_fraction_frozen': frozen_photo['foreground_fraction'], 'foreground_fraction_adapted': adapted_photo['foreground_fraction'], 'mean_abs_matte_difference': round(float(np.abs(adapted_photo['alpha'] - frozen_photo['alpha']).mean()), 4), 'note': 'no label; sanity check'}}\n"
+                "    print({{'own_photograph': photo_report}})\n"
                 "with open('outputs/{stem}_predictions.json', 'w', encoding='utf-8') as f:\n"
-                "    json.dump({{'model': adapted_photos['model'], 'output': adapted_photos['output'], 'photographs': [{{'id': r['id'], 'title': r['title'], 'source': r['source'], 'license': r['license']}} for r in portraits], 'frozen': [{{k: v for k, v in p.items() if k != 'alpha'}} for p in frozen_photos['predictions']], 'adapted': [{{k: v for k, v in p.items() if k != 'alpha'}} for p in adapted_photos['predictions']], 'drift': photo_drift}}, f, indent=2)\n\n"
+                "    json.dump({{'model': adapted_shown['model'], 'output': adapted_shown['output'], 'shown_portraits': [{{'id': r['id'], 'frozen': {{k: v for k, v in b.items() if k != 'alpha'}}, 'adapted': {{k: v for k, v in a.items() if k != 'alpha'}}}} for r, b, a in zip(shown_records, frozen_shown['predictions'], adapted_shown['predictions'])], 'own_photograph': photo_report}}, f, indent=2)\n\n"
                 "artifact_dir = Path('outputs/{stem}_adapter')\n"
                 "shutil.rmtree(artifact_dir, ignore_errors=True)\n"
                 "pipe.save_artifact(artifact_dir, metadata={{'tutorial': '{stem}', 'data_source': data_source}})\n"
@@ -354,14 +356,13 @@ TEMPLATE = {
                 "        'pickle_unpickled_once_for_conversion': True,\n"
                 "        'served_from_pickle': False,\n"
                 "        'remote_code_executed': False,\n"
-                "        'photographs': [{{'id': p['id'], 'url': p['url'], 'bytes': p['bytes'], 'sha256': p['sha256']}} for p in PORTRAIT_RECORDS],\n"
-                "        'photograph_license': PORTRAIT_LICENSE,\n"
                 "        'labelled_data': SAMPLE_LABEL_SOURCE,\n"
+                "        'photographs_downloaded': 0,\n"
                 "    }},\n"
                 "    'runtime': {{'python': platform.python_version(), 'torch': torch.__version__, 'pillow': PIL.__version__, 'numpy': np.__version__}},\n"
                 "    'data_source': data_source,\n"
                 "    'comparison': comparison,\n"
-                "    'photograph_drift': photo_drift,\n"
+                "    'own_photograph': photo_report,\n"
                 "    'artifact': {{'dir': str(artifact_dir), 'sha256': artifact_manifest['files'][0]['sha256'], 'bytes': artifact_manifest['files'][0]['bytes']}},\n"
                 "    'reload_parity': parity,\n"
                 "}}\n"
@@ -380,27 +381,29 @@ TEMPLATE = {
         "and 0.66, and a bounded fine-tuning of its matting branches on 48 drawn portraits, selected by validation loss with the frozen "
         "model as a candidate, brings it near 0.004. That is the claim: the adaptation contract runs end to end on labelled "
         "portrait/alpha pairs, the pickle is audited and converted rather than served, and the artifact that carries the change is "
-        "about 17 MB and reloads with the same outputs. It is not a claim about matting quality on photographs — the labelled portraits "
-        "are drawings, chosen because no photographic matting dataset with alpha mattes is both permissively licensed and free of "
-        "personal-data concerns — and the four photographs are a sanity check without labels, not an evaluation.\n\n"
+        "about 17 MB and reloads with the same outputs. It is not a claim about matting quality on photographs — the portraits are "
+        "drawings, chosen because no photographic matting dataset with alpha mattes is both permissively licensed and free of "
+        "personal-data concerns and because public-domain photographs cannot be fetched reliably from shared cloud runtimes — and the "
+        "default path never sees a photograph; the photograph gate is a sanity check without a label, not an evaluation.\n\n"
         "The numbers are sample-sanity evidence: one seeded run, 20 test portraits from one renderer, no dispersion estimate, and a "
         "domain gap (drawn figures) that makes the gain large by construction. Nothing here measures the model on the PPM-100 "
         "benchmark, on video, on group portraits, on hands and objects held in front of the body, or on the hair detail that matting "
         "is judged on in practice.\n\n"
         "Three things to carry to real data. **The alpha is the contract, and it must belong to the image:** an alpha drawn for another "
-        "crop, or a binary mask passed off as a matte, is trained on without complaint. **Watch the photographs after adaptation:** "
-        "fine-tuning on a narrow domain moves the model everywhere, and the frozen-versus-adapted drift on held-out photographs is the "
-        "early warning. **Read the baselines first:** on a close-up where the subject fills 84 % of the frame the all-foreground matte "
-        "already scores a MAD of 0.16; only the unknown-band MAD says whether the model resolved the boundary.\n\n"
+        "crop, or a binary mask passed off as a matte, is trained on without complaint. **Watch a real photograph after adaptation:** "
+        "fine-tuning on a narrow domain moves the model everywhere; in the build record the adapted model took in dark background "
+        "beside the subject of a real portrait it had matted cleanly before, and the photograph gate exists to show that on your own "
+        "image. **Read the baselines first:** on a close-up where the subject fills 84 % of the frame the all-foreground matte already "
+        "scores a MAD of 0.16; only the unknown-band MAD says whether the model resolved the boundary.\n\n"
         "Successful execution proves that the recorded repository revision's pipeline modules, carried in this standalone notebook, can "
         "acquire and digest-verify a pickled upstream checkpoint, audit and convert it into safetensors without executing anything "
         "outside the audited allow-list, build the vendored architecture and load it strictly, render and validate labelled portraits, "
-        "fetch digest-pinned photographs, execute bounded fine-tuning, evaluate against constant baselines and the frozen model on "
-        "held-out portraits, and emit the shown machine-readable artifacts — without the repository being reachable. It does **not** "
+        "execute bounded fine-tuning, evaluate against constant baselines and the frozen model on held-out portraits, and emit the "
+        "shown machine-readable artifacts — without the repository being reachable and without downloading any image. It does **not** "
         "establish benchmark superiority, production fitness, or matting skill on photographs beyond the checks shown.\n\n"
-        "**Optional experiments (they do not affect the default path):** set `TRAINABLE = 'full'` and compare the photograph drift; raise "
-        "`EPOCHS` and watch the validation loss drift; try `LEARNING_RATE = 5e-5`; or bring your own labelled portraits through BYOD and "
-        "read the baselines before the adapted number.\n\n"
+        "**Optional experiments (they do not affect the default path):** set `TRAINABLE = 'full'` and compare; raise `EPOCHS` and "
+        "watch the validation loss drift; try `LEARNING_RATE = 5e-5`; matte a photograph of your own through `USE_BYOD_PHOTO`; or "
+        "bring your own labelled portraits through BYOD and read the baselines before the adapted number.\n\n"
         "## References\n\n"
         "- Repository README: https://github.com/kurtvalcorza/modnet-matting-pipeline/blob/main/README.md\n"
         "- Repository model card: https://github.com/kurtvalcorza/modnet-matting-pipeline/blob/main/MODEL_CARD.md\n"
@@ -408,7 +411,6 @@ TEMPLATE = {
         "- Hugging Face mirror of the checkpoint: https://huggingface.co/XM5354/Modnet_models (revision `{MODEL_REVISION}`; byte-identical to the authors' Google Drive release)\n"
         "- Upstream repository (code, models and demos, Apache-2.0): https://github.com/ZHKKKe/MODNet\n"
         "- Ke, Z., Sun, J., Li, K., Yan, Q., Lau, R. W. H. (2022). MODNet: Real-Time Trimap-Free Portrait Matting via Objective Decomposition. AAAI 2022. arXiv:2011.11961: https://arxiv.org/abs/2011.11961\n"
-        "- Photographs: CC0 Pixabay portraits re-hosted on Wikimedia Commons (URLs pinned in `samples.py`)\n"
         "- DIMER Notebook Specification 2.0 and Model Card Specification 1.1 (fleet specs in the ml-worker repository)\n"
     ),
 }

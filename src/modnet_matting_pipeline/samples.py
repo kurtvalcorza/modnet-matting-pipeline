@@ -1,14 +1,15 @@
 """Tutorial data for the MODNet matting pipeline: a seeded synthetic portrait generator with exact alpha mattes (the
-labelled sample dataset), four digest-pinned CC0 portrait photographs for label-free inference, the BYOD zip
-loader, and the writers that put a sample pair on disk in the BYOD shape.
+labelled sample dataset), the BYOD zip loader, a loader for a user's own photograph, and the writers that put a
+sample pair on disk in the BYOD shape.
 
-Why synthetic labels: no portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free
-of personal-data concerns (P3M-10k, PPM-100 and AIM-500 are research-only), so the labelled records are drawn
-figures — head, neck, shoulders, a hair cap and dozens of thin hair strands with fractional coverage — composited
-over generated backgrounds with an exact alpha. They are out of MODNet's photographic training domain on purpose:
-the frozen model's error on them and the adapted model's error are the tutorial's paired comparison, and the four
-photographs (CC0, Pixabay via Wikimedia Commons) show the frozen and adapted models on real portraits without a
-label. Everything here uses numpy and Pillow only; no model library is imported.
+Why synthetic: no portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free of
+personal-data concerns (P3M-10k, PPM-100 and AIM-500 are research-only), and the public-domain photographs the row
+first pinned on Wikimedia Commons cannot be fetched from shared cloud runtimes (HTTP 429), so the default path
+downloads no image at all: the labelled records are drawn figures — head, neck, shoulders, a hair cap and dozens of
+thin hair strands with fractional coverage — composited over generated backgrounds with an exact alpha. They are out
+of MODNet's photographic training domain on purpose: the frozen model's error on them and the adapted model's error
+are the tutorial's paired comparison, and a real portrait enters only through the BYOD photograph gate. Everything
+here uses numpy and Pillow only; no model library is imported.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ import csv
 import hashlib
 import io
 import json
-import urllib.request
 import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -28,51 +28,6 @@ SUPERSAMPLE = 2  # the figures are drawn at 1024 × 1024 and box-filtered down, 
 SAMPLE_COUNTS = {"train": 48, "validation": 12, "test": 20}
 SAMPLE_SEEDS = {"train": 0, "validation": 1_000, "test": 2_000}  # disjoint seed ranges; ids carry the seed
 SAMPLE_LABEL_SOURCE = "in-code synthetic portraits with exact alpha mattes (seeded numpy + Pillow renderer)"
-DEFAULT_PORTRAIT_DIR = Path(__file__).resolve().parents[2] / "weights" / "portraits"
-PORTRAIT_LICENSE = "CC0 1.0 (Pixabay photographs re-hosted on Wikimedia Commons)"
-PORTRAIT_USER_AGENT = "modnet-matting-pipeline/0.1 (DIMER fleet tutorial by kurtvalcorza; digest-pinned fetch of four CC0 files)"
-# Four CC0 stock portraits, pinned by URL, byte size and SHA-256; a re-upload under the same name changes the bytes
-# and is refused. They are inference-only (no matte exists for them).
-PORTRAIT_RECORDS: tuple[dict[str, Any], ...] = (
-    {
-        "id": "bearded-man-pipe",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/4/49/Bearded_man_smoking_pipe-3013924.jpg",
-        "bytes": 4_702_901,
-        "sha256": "aca3b45787b17c66309eaa10483d7c29d5689fbd82e773dce0f6fa299f735203",
-        "title": "Bearded man smoking pipe (Pixabay 3013924)",
-        "width": 5500,
-        "height": 3667,
-    },
-    {
-        "id": "portrait-in-hijab",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/9/9d/Portrait_in_hijab%2C_3064633.jpg",
-        "bytes": 1_241_106,
-        "sha256": "4cf790351645a6300c5529450eaa2da0581e8ed38e1171e60374049472ad190f",
-        "title": "Portrait in hijab (Pixabay 3064633)",
-        "width": 4256,
-        "height": 2832,
-    },
-    {
-        "id": "close-up-old-woman",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/8/80/Close-up_portrait_of_an_old_woman.jpg",
-        "bytes": 1_607_542,
-        "sha256": "03f80f34457f0f15c20251de8ca93fc9c97e379c6ebcee815ef64fe5fde03108",
-        "title": "Close-up portrait of an old woman (Pixabay)",
-        "width": 3008,
-        "height": 2000,
-    },
-    {
-        "id": "womans-close-portrait",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/7/70/Woman%27s_close_portrait%2C_3096664.jpg",
-        "bytes": 1_718_396,
-        "sha256": "eb77b3e953813c97978a70892d2646b88e21e227ae5bef9e6e81d310df67869b",
-        "title": "Woman's close portrait (Pixabay 3096664)",
-        "width": 3021,
-        "height": 2351,
-    },
-)
-PORTRAIT_MAX_SIDE = 1536  # the photographs are 3–5.5 k pixels wide; they are downscaled once on load (records say so)
-
 # --------------------------------------------------------------------------------------------------
 # synthetic portraits
 # --------------------------------------------------------------------------------------------------
@@ -354,62 +309,6 @@ def _image_bytes(image: Any) -> bytes:
 
 
 # --------------------------------------------------------------------------------------------------
-# pinned photographs (inference only)
-# --------------------------------------------------------------------------------------------------
-
-
-def _sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def fetch_portraits(cache_dir: str | Path | None = None, *, fetcher: Any | None = None) -> list[dict[str, Any]]:
-    """Fetch the four pinned CC0 photographs into `cache_dir` (default `weights/portraits/`, git-ignored), each
-    refused on a byte-size or SHA-256 mismatch, and return inference records `{id, image, title, source}`. The
-    photographs are downscaled on load to at most `PORTRAIT_MAX_SIDE` pixels on the long side (recorded per
-    record) — MODNet resizes to 512 on the short side anyway, and the originals are 3–5.5 k pixels wide."""
-    import numpy as np
-    from PIL import Image
-
-    root = Path(cache_dir) if cache_dir is not None else DEFAULT_PORTRAIT_DIR
-    root.mkdir(parents=True, exist_ok=True)
-    records = []
-    for pin in PORTRAIT_RECORDS:
-        target = root / f"{pin['id']}.jpg"
-        if not (
-            target.is_file() and target.stat().st_size == pin["bytes"] and _sha256_bytes(target.read_bytes()) == pin["sha256"]
-        ):
-            data = (fetcher or _http_get)(pin["url"])
-            if len(data) != pin["bytes"] or _sha256_bytes(data) != pin["sha256"]:
-                raise ValueError(f"{pin['id']}: downloaded bytes do not match the pinned size/SHA-256; refusing")
-            target.write_bytes(data)
-        with Image.open(target) as im:
-            im = im.convert("RGB")
-            original = im.size
-            if max(im.size) > PORTRAIT_MAX_SIDE:
-                scale = PORTRAIT_MAX_SIDE / max(im.size)
-                im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.Resampling.LANCZOS)
-            image = np.asarray(im, dtype=np.uint8)
-        records.append(
-            {
-                "id": pin["id"],
-                "image": image,
-                "title": pin["title"],
-                "source": pin["url"],
-                "license": PORTRAIT_LICENSE,
-                "original_size": list(original),
-                "loaded_size": [int(image.shape[1]), int(image.shape[0])],
-            }
-        )
-    return records
-
-
-def _http_get(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": PORTRAIT_USER_AGENT})
-    with urllib.request.urlopen(request, timeout=180) as response:  # noqa: S310 - pinned https URL, digest-verified
-        return response.read()
-
-
-# --------------------------------------------------------------------------------------------------
 # BYOD: zip of image / alpha pairs + pairs.csv
 # --------------------------------------------------------------------------------------------------
 
@@ -456,6 +355,34 @@ def load_byod_dataset(path: str | Path, *, size: int = SAMPLE_SIZE) -> list[dict
                 {"id": str(row["id"]), "image": image, "alpha": alpha, "source": row["image"], "original_size": list(original)}
             )
     return records
+
+
+PHOTO_MAX_SIDE = 1536  # a user's photograph is downscaled once on load to this long side (MODNet resizes to 512 anyway)
+
+
+def load_photo(path: str | Path, *, record_id: str = "photo") -> dict[str, Any]:
+    """Read one photograph (JPEG/PNG; greyscale and RGBA converted to RGB) as an inference record `{id, image}`,
+    downscaled once to at most `PHOTO_MAX_SIDE` pixels on the long side (the original and loaded sizes are recorded)."""
+    import numpy as np
+    from PIL import Image
+
+    source = Path(path)
+    if not source.is_file():
+        raise FileNotFoundError(f"photograph not found: {source}")
+    with Image.open(source) as im:
+        im = im.convert("RGB")
+        original = im.size
+        if max(im.size) > PHOTO_MAX_SIDE:
+            scale = PHOTO_MAX_SIDE / max(im.size)
+            im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.Resampling.LANCZOS)
+        image = np.asarray(im, dtype=np.uint8)
+    return {
+        "id": record_id,
+        "image": image,
+        "source": source.name,
+        "original_size": list(original),
+        "loaded_size": [int(image.shape[1]), int(image.shape[0])],
+    }
 
 
 def write_sample_pair(record: Mapping[str, Any], image_path: str | Path, alpha_path: str | Path) -> dict[str, Any]:

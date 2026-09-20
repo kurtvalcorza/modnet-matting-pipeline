@@ -31,7 +31,7 @@ MODEL_LOAD_EXPR = (
 )
 # The upstream code commit (the vendored architecture) and the second Hub mirror are cited beside the model pin.
 KNOWN_SHAS: frozenset[str] = frozenset({"28165a451e4610c9d77cfdf925a94610bb2810fb", "f69229190e22bdca5a028f19255e7fbd00f8da4d"})
-BYOD_GATES = ("USE_BYOD",)
+BYOD_GATES = ("USE_BYOD", "USE_BYOD_PHOTO")
 EXPECTED_OUTPUTS = (
     "outputs/modnet_matting_sample_portrait.png",
     "outputs/modnet_matting_sample_alpha.png",
@@ -52,11 +52,11 @@ CODE_MARKERS = (
     "splits = split_dataset(load_byod_dataset(byod_path), seed=0)",
     "dataset_report = dataset_manifest(",
     "write_sample_pair(test_records[0], 'outputs/modnet_matting_sample_portrait.png', 'outputs/modnet_matting_sample_alpha.png')",
-    "portraits = fetch_portraits(cache_dir='weights/portraits')",
     "validate_dataset(records)",
-    # Stage 5: frozen model against the constant baselines, and the photographs
+    # Stage 5: frozen model against the constant baselines, mattes and cut-outs of two held-out portraits
     "frozen_test = pipe.evaluate(test_records)",
-    "frozen_photos = pipe.predict(portraits)",
+    "frozen_shown = pipe.predict(shown_records)",
+    "write_matte(record, record['alpha'], 'reference')",
     # Stage 6: bounded fine-tuning of the matting branches
     "adapt_result = pipe.adapt(",
     "trainable=TRAINABLE",
@@ -66,8 +66,9 @@ CODE_MARKERS = (
     "assert best['val_loss'] <= adapt_result['history'][0]['val_loss']",
     "assert abs(adapted_val['model']['mad'] - best['val']['mad']) < 1e-3",
     "assert adapted_test['model']['mad'] < frozen_test['model']['mad']",
-    # Stage 8: the photographs again, artifact export, reload parity, provenance
-    "adapted_photos = pipe.predict(portraits)",
+    # Stage 8: adapted mattes, the optional own photograph, artifact export, reload parity, provenance
+    "adapted_shown = pipe.predict(shown_records)",
+    "photo = load_photo(photo_path, record_id='own-photograph')",
     "pipe.save_artifact(artifact_dir, metadata=",
     "reloaded = ModNetMattingPipeline.from_artifact(artifact_dir, weights_dir=WEIGHTS_DIR, device=pipe.device)",
     "assert parity['mad_diff'] < 1e-4 and parity['max_abs_matte_diff'] < 1e-3",
@@ -75,7 +76,8 @@ CODE_MARKERS = (
     "'remote_code_executed': False",
     "'source_drive_file_id': SOURCE_DRIVE_FILE_ID",
     "'upstream_code_commit': UPSTREAM_CODE_COMMIT",
-    "'photograph_license': PORTRAIT_LICENSE",
+    "'labelled_data': SAMPLE_LABEL_SOURCE",
+    "'photographs_downloaded': 0",
 )
 MARKDOWN_MARKERS = (
     "**Capability:** trimap-free portrait alpha matting with MODNet (MobileNetV2 semantic branch, detail branch, fusion branch), held-out MAD / MSE / SAD against constant baselines, and bounded fine-tuning of the matting branches to labelled portrait/alpha pairs",
@@ -85,9 +87,9 @@ MARKDOWN_MARKERS = (
     "constant baselines",
     "not a calibrated probability",
     "BatchNorm",
-    "Watch the photographs after adaptation",
+    "Watch a real photograph after adaptation",
     "sample-sanity",
-    "CC0",
+    "downloads no image at all",
 )
 # Direct-library use that must stay inside the carried module cells (G2).
 FORBIDDEN_OUTSIDE_MODULE = (

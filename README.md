@@ -17,19 +17,19 @@ DIMER-oriented pipeline for **MODNet photographic portrait matting** (`ZHKKKe/MO
 
 **The checkpoint is a pickle, and the pipeline converts it once.** The upstream file is a legacy `torch.save` file: five pickle streams followed by raw tensor bytes. `audit_pickle` parses exactly those streams with `pickletools` (no execution), refuses any global outside `collections.OrderedDict` / `torch._utils._rebuild_tensor_v2` / `torch.FloatStorage` / `torch.LongStorage`, and `convert_model` unpickles it once through `torch.load(weights_only=True)`, strips the DataParallel `module.` prefix, loads the tensors strictly into the vendored architecture and writes `modnet-photographic-portrait-matting.safetensors` (26,135,396 bytes, SHA-256 `0ec6d832…`), the only file the model is ever loaded from.
 
-**The labelled portraits are drawings.** No portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free of personal-data concerns, so `sample_dataset()` renders 80 figures with exact mattes in code (hair strands and silhouette edges with fractional alpha), and four digest-pinned CC0 photographs are fetched for label-free inference. The frozen model's error on the drawings (MAD 0.079), the adapted model's error (0.004) and the model's behaviour on the photographs before and after adaptation are the evidence; none of it is a claim about matting quality on photographs.
+**The portraits are drawings, and the default path downloads no image.** No portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free of personal-data concerns, and the public-domain photographs this row first pinned on Wikimedia Commons cannot be fetched from shared cloud runtimes (HTTP 429 on Kaggle), so `sample_dataset()` renders 80 figures with exact mattes in code (hair strands and silhouette edges with fractional alpha) and a real portrait enters only through `load_photo` / the notebook's `USE_BYOD_PHOTO` gate. The frozen model's error on the drawings (MAD 0.079) and the adapted model's error (0.004) are the evidence; neither is a claim about matting quality on photographs.
 
 ## Quick start
 
 ```python
-from modnet_matting_pipeline import ModNetMattingPipeline, fetch_portraits, sample_dataset
+from modnet_matting_pipeline import ModNetMattingPipeline, load_photo, sample_dataset
 
 pipe = ModNetMattingPipeline.from_pretrained(allow_download=True)  # stages + verifies the snapshot, audits + converts the pickle once, loads safetensors
 splits = sample_dataset()                                           # 48 / 12 / 20 rendered portraits with exact alpha mattes
 print(pipe.evaluate(splits["test"])["model"])                       # frozen model: MAD, MSE, SAD, unknown-band MAD (baselines under ["baselines"])
 pipe.adapt(splits["train"], splits["validation"], epochs=6)         # bounded fine-tuning of the matting branches, epoch selected by validation loss
 print(pipe.evaluate(splits["test"])["model"])                       # adapted model, same portraits
-mattes = pipe.predict(fetch_portraits())["predictions"]            # four CC0 photographs: alpha (H, W) float32 in [0, 1] at the input size
+matte = pipe.predict([load_photo("portrait.jpg")])["predictions"][0]  # your own photograph: alpha (H, W) float32 in [0, 1] at the input size
 pipe.save_artifact("outputs/adapter")
 ```
 
@@ -41,14 +41,13 @@ pipe.save_artifact("outputs/adapter")
 weights/modnet-photographic-portrait-matting/   modnet_photographic_portrait_matting.ckpt  (git-ignored, the pinned source)
                                                 dimer-base-manifest.json
                                                 modnet-photographic-portrait-matting.safetensors  (git-ignored, converted)
-weights/portraits/                              the four CC0 photographs, fetched by pinned URL + SHA-256 (git-ignored)
 ```
 
-`from_pretrained()` calls `stage_missing_files()` (fetches only absent manifest entries, only at the pinned revision, only with `allow_download=True`) then `verify_snapshot()` (byte size + SHA-256 of the manifest entry and of the converted file when present), converts the pickle when the safetensors file is absent, and refuses on the first mismatch. With `require_source=False` the digest-verified converted file is accepted without the checkpoint — the DIMER-hosted shape. `docs/WEIGHTS.md` records the provenance (Drive origin, Hub mirror, the second mirror), the audit, the conversion, the vendored code and the DIMER hosting notes.
+`from_pretrained()` calls `stage_missing_files()` (fetches only absent manifest entries, only at the pinned revision, only with `allow_download=True`) then `verify_snapshot()` (byte size + SHA-256 of the manifest entry and of the converted file when present), converts the pickle when the safetensors file is absent, and refuses on the first mismatch. With `require_source=False` the digest-verified converted file is accepted without the checkpoint — the DIMER-hosted shape. `docs/WEIGHTS.md` records the provenance (Drive origin, Hub mirror, the second mirror), the audit, the conversion, the vendored code, the data decision and the DIMER hosting notes.
 
 ## Sample data
 
-`sample_dataset()` renders the labelled splits in code — deterministic in the seed, drawn at 1024 × 1024 and box-filtered to 512 × 512 — and `dataset_manifest` validates them, refuses a portrait in two splits and records a digest. `fetch_portraits()` downloads the four CC0 photographs (Pixabay uploads re-hosted on Wikimedia Commons, 9.3 MB) and refuses any on a size or SHA-256 mismatch. Nothing is committed under `weights/`.
+`sample_dataset()` renders the labelled splits in code — deterministic in the seed, drawn at 1024 × 1024 and box-filtered to 512 × 512 — and `dataset_manifest` validates them, refuses a portrait in two splits and records a digest. `load_photo(path)` reads one photograph of the user's own (JPEG/PNG, downscaled once to 1536 pixels on the long side) as an inference record. Nothing is downloaded but the checkpoint and nothing is committed under `weights/`.
 
 ## Adapter artifacts
 
@@ -61,23 +60,23 @@ pip install -e . --no-deps
 pytest -q -o addopts= tests
 ```
 
-Tests are offline: crafted pickles in all three layouts (zip, plain, legacy multi-stream), temporary manifests, synthetic portraits, an injected photograph fetcher, a BYOD zip with a decoy member and a stub model with the aliased backbone, never the weights; `tests/test_model_backed.py` runs the real converted weights when they are staged (load, matte, one adaptation epoch, reload parity) and skips otherwise. The model-backed smoke is recorded in `MODEL_CARD.md` (*Runtime*).
+Tests are offline: crafted pickles in all three layouts (zip, plain, legacy multi-stream), temporary manifests, synthetic portraits, a synthetic photograph through the loader, a BYOD zip with a decoy member and a stub model with the aliased backbone, never the weights; `tests/test_model_backed.py` runs the real converted weights when they are staged (load, matte, one adaptation epoch, reload parity) and skips otherwise. The model-backed smoke is recorded in `MODEL_CARD.md` (*Runtime*).
 
 ## Tutorial
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/modnet-matting-pipeline/blob/main/tutorials/modnet_matting_colab.ipynb)
 
-`tutorials/modnet_matting_colab.ipynb` is declared `E2E` and is **standalone** (DIMER Notebook Specification 2.0 §4): it is generated by `tools/build_notebook.py` from `tools/notebook_template.py` and embeds the 4 package modules (`metrics.py`, `modeling.py`, `pipeline.py`, `samples.py`) verbatim in dependency order, the pinned model identity, the snapshot manifest and the exact runtime pins, so the exported `.ipynb` keeps working without this repository being reachable. It runs on a CPU or a GPU. It downloads and converts the pinned checkpoint in the runtime (the audit and conversion records are printed before the model loads), renders the labelled portraits, fetches the pinned photographs, and runs the sample path: validation, the frozen model against the constant baselines and on the photographs, bounded fine-tuning, held-out evaluation, the photographs again, adapter export and reload parity. Do not edit the notebook by hand; regenerate it (`python tools/build_notebook.py`; `--check` is enforced by the validator and CI).
+`tutorials/modnet_matting_colab.ipynb` is declared `E2E` and is **standalone** (DIMER Notebook Specification 2.0 §4): it is generated by `tools/build_notebook.py` from `tools/notebook_template.py` and embeds the 4 package modules (`metrics.py`, `modeling.py`, `pipeline.py`, `samples.py`) verbatim in dependency order, the pinned model identity, the snapshot manifest and the exact runtime pins, so the exported `.ipynb` keeps working without this repository being reachable. It runs on a CPU or a GPU and downloads nothing but the checkpoint. It converts the pinned checkpoint in the runtime (the audit and conversion records are printed before the model loads), renders the labelled portraits, and runs the sample path: validation, the frozen model against the constant baselines with written mattes and cut-outs, bounded fine-tuning, held-out evaluation, the adapted mattes, an optional photograph of your own (`USE_BYOD_PHOTO`), adapter export and reload parity. Do not edit the notebook by hand; regenerate it (`python tools/build_notebook.py`; `--check` is enforced by the validator and CI).
 
 ## Release status
 
-**Candidate** — the `E2E` notebook has executed top-to-bottom on the local pre-flight harness only (WSL, RTX 5070 Ti, weights pre-staged; 11/11 cells, 35.5 s); the clean-runtime Kaggle execution that promotes it is pending and will be recorded in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but are not the evidence; the hosted run is.
+**Candidate** — the `E2E` notebook has executed top-to-bottom on the local pre-flight harness only (WSL, RTX 5070 Ti, weights pre-staged; 11/11 cells, 30.8 s); the clean-runtime Kaggle execution that promotes it is pending and will be recorded in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but are not the evidence; the hosted run is.
 
 ## Licensing
 
 - Upstream weights: Apache-2.0 (`ZHKKKe/MODNet`: "the code, models, and demos … are released under the Apache License 2.0"), staged from the pinned Hub mirror whose bytes equal the authors' Google Drive release, and converted, not modified, into the served safetensors.
 - Upstream code: Apache-2.0, vendored as `modeling.py` with the commit and file digests recorded in `docs/WEIGHTS.md`.
-- Tutorial photographs: CC0 1.0 (Pixabay portraits re-hosted on Wikimedia Commons); fetched at run time, never committed. Labelled portraits: rendered in code, this repository's licence.
+- Tutorial data: the labelled portraits are rendered in code under this repository's licence; no photograph is distributed or fetched.
 - This repository's code and documentation: Apache-2.0 (`LICENSE`).
 - The upstream licence governs your use of the weights, including commercial use and redistribution; this repository grants no rights beyond it.
 

@@ -1,6 +1,6 @@
 # Weight provenance, the pickle audit, the conversion, the vendored architecture, the tutorial data and DIMER hosting
 
-This repository pins **one** model snapshot with its own `dimer-base-manifest.json`, **one** upstream code commit (the vendored architecture) and **four** photographs. The checkpoint is a legacy torch pickle, which this pipeline audits and converts but never serves; the photographs are fetched by pinned URL, byte size and SHA-256; the labelled portraits are rendered in code.
+This repository pins **one** model snapshot with its own `dimer-base-manifest.json` and **one** upstream code commit (the vendored architecture). The checkpoint is a legacy torch pickle, which this pipeline audits and converts but never serves; the labelled portraits are rendered in code and no photograph is fetched.
 
 ## MODNet photographic portrait matting weights
 
@@ -55,14 +55,7 @@ No upstream regression fixture is published for this checkpoint. The evidence is
 ## The tutorial data
 
 - **Labelled portraits** are rendered in code (`samples.render_portrait`): a seeded numpy + Pillow renderer draws a head, ears, neck, shoulders, a hair cap, optional long hair and glasses, face features, and 40–120 thin hair strands with a partial-coverage brush, at 1024 × 1024, and box-filters everything to 512 × 512, so the alpha is fractional along every strand and edge (about 2.3 % of pixels; foreground fraction about 0.34). The default splits are 48 / 12 / 20 portraits from three disjoint seed ranges (0…, 1000…, 2000…), rendered in the runtime and never downloaded or committed. Why drawings: no portrait-matting dataset with per-pixel alpha mattes is both permissively licensed and free of personal-data concerns — P3M-10k, PPM-100 and AIM-500 are research-only.
-- **Photographs** (inference only, no matte exists): four CC0 Pixabay portraits re-hosted on Wikimedia Commons, pinned in `samples.PORTRAIT_RECORDS` by URL, byte size and SHA-256 and refused on any mismatch; fetched over HTTPS by `fetch_portraits` into `weights/portraits/` (git-ignored; 9,269,945 bytes in total) and downscaled once on load to at most 1536 pixels on the long side (the originals are 3,008–5,500 pixels wide). A re-upload under the same file name on Commons changes the bytes and is refused, which is the intended behaviour.
-
-| id | Commons file | Bytes | SHA-256 |
-|---|---|---|---|
-| `bearded-man-pipe` | `Bearded_man_smoking_pipe-3013924.jpg` | 4,702,901 | `aca3b45787b17c66309eaa10483d7c29d5689fbd82e773dce0f6fa299f735203` |
-| `portrait-in-hijab` | `Portrait_in_hijab,_3064633.jpg` | 1,241,106 | `4cf790351645a6300c5529450eaa2da0581e8ed38e1171e60374049472ad190f` |
-| `close-up-old-woman` | `Close-up_portrait_of_an_old_woman.jpg` | 1,607,542 | `03f80f34457f0f15c20251de8ca93fc9c97e379c6ebcee815ef64fe5fde03108` |
-| `womans-close-portrait` | `Woman's_close_portrait,_3096664.jpg` | 1,718,396 | `eb77b3e953813c97978a70892d2646b88e21e227ae5bef9e6e81d310df67869b` |
+- **No photograph is fetched.** The row first pinned four CC0 Pixabay portraits re-hosted on Wikimedia Commons (URL + byte size + SHA-256); the first clean-room Kaggle run failed with `HTTP 429 Too many requests` from `upload.wikimedia.org` on the third download (2026-09-20) — Commons throttles shared cloud runtimes — and the maintainer ruled the photographs out of the default path rather than re-host them. A real portrait enters only as the user's own file through `samples.load_photo` (JPEG/PNG, downscaled once to at most 1536 pixels on the long side, original and loaded sizes recorded) and the notebook's `USE_BYOD_PHOTO` gate, and never leaves the runtime.
 
 ## Files deliberately not staged
 
@@ -73,6 +66,6 @@ The mirror's `modnet_webcam_portrait_matting.ckpt` (the video/webcam checkpoint)
 - Apache-2.0 permits use, modification, redistribution and commercial use subject to preservation of the licence and notices. DIMER may host the converted safetensors in its model store under those terms; it is derived from, and recorded beside, the unmodified upstream checkpoint.
 - Upload set: `modnet-photographic-portrait-matting.safetensors` (26,135,396 bytes). **The `.ckpt` file must not be uploaded** — a profile that carries it would reintroduce the executable-serialization boundary this conversion removes.
 - Loader trust boundary: no `trust_remote_code`, no Hub-hosted code, no pickle on the serving path; the model class is the vendored `modeling.py`, the served state dict is safetensors, and `from_pretrained(require_source=False)` accepts the digest-verified file without the manifest or the checkpoint.
-- Serving shape: a matte needs the 25 MB weights and one RGB image; on an RTX 5070 Ti laptop GPU the four photographs (1536 × ~1100 each) take 0.12 s, on a laptop CPU 0.66 s. An adapted profile needs the weights plus a 17 MB adapter (`branches`) or a 26 MB one (`full`).
+- Serving shape: a matte needs the 25 MB weights and one RGB image; on an RTX 5070 Ti laptop GPU four 1536 × ~1100 photographs took 0.12 s during the build, on a laptop CPU 0.66 s. An adapted profile needs the weights plus a 17 MB adapter (`branches`) or a 26 MB one (`full`).
 - Provenance note for the profile: the authoritative release is the authors' Google Drive file; the Hub mirror is a third-party re-upload whose bytes were verified equal to it on 2026-09-20 (SHA-256 above). A profile should cite both.
 - Line endings: `.gitattributes` carries `weights/** -text`, so a Windows checkout cannot rewrite a snapshot file's newlines and break its recorded digest.
