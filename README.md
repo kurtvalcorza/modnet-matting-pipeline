@@ -70,7 +70,7 @@ Tests are offline: crafted pickles in all three layouts (zip, plain, legacy mult
 
 ## Release status
 
-**Candidate** — the `E2E` notebook has executed top-to-bottom on the local pre-flight harness only (WSL, RTX 5070 Ti, weights pre-staged; 11/11 cells, 30.8 s); the clean-runtime Kaggle execution that promotes it is pending and will be recorded in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but are not the evidence; the hosted run is.
+**Release-grade** — the `E2E` notebook blob `ab5bea58` (committed at `aa26e44`) executed top-to-bottom in a clean Kaggle Tesla T4 runtime on 2026-09-20 (11/11 ok (1 restart after install cell), 234.5 s); the record is in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but were never the evidence; the hosted run is. A later change to the carried modules or the notebook returns the status to Candidate until re-verified.
 
 ## Licensing
 
