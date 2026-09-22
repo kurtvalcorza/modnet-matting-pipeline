@@ -164,7 +164,7 @@ The model must not be used for identity verification, surveillance, covert profi
 | Input contract | RGB uint8 images with both sides in [64, 4096] for matting; 512 × 512 image/alpha pairs (alpha in [0, 1]) for adaptation |
 | Sample data | labelled portraits rendered in code; no photograph fetched or vendored (a user's own through the notebook's photograph gate) |
 
-**Two things are open, and neither is the licence or the code:** whether a one-time unpickle through torch's weights-only loader after a static audit with a pinned digest — in the build and in the tutorial runtime, where the notebook converts what it downloads — meets the DIMER bar, or whether DIMER should host only the safetensors converted and verified once by the maintainer (the served artifact is the same file either way); and whether a third-party Hub mirror, verified byte-identical to the authors' Google Drive release, is an acceptable provenance for a hosted profile.
+**Two things are open, and neither is the licence or the code:** whether a one-time unpickle through torch's weights-only loader after a static audit with a pinned digest — in the build and in the tutorial runtime, where the notebook converts what it downloads — meets the bar for redistribution, or whether only the safetensors converted and verified once by the maintainer should be published (the served artifact is the same file either way); and whether a third-party Hub mirror, verified byte-identical to the authors' Google Drive release, is an acceptable provenance for a hosted profile.
 
 ## Runtime
 
