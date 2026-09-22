@@ -5,7 +5,7 @@ pipeline_tag: image-segmentation
 task: "Others - Portrait Matting (trimap-free alpha matting, MODNet)"
 base_model: XM5354/Modnet_models
 date_published: "2020-11-23"
-date_published_source: "The upstream repository `ZHKKKe/MODNet` was created on 2020-11-23 (GitHub `created_at`, the fleet inventory's date) and published the photographic portrait-matting checkpoint with the paper's first arXiv version (arXiv:2011.11961, November 2020). The pinned Hub revision `71aca6d0…` (2023-04-16) is a third-party mirror of that file, byte-identical to the authors' Google Drive release (SHA-256 `7c22235f…`); its date is the mirror's, not the model's."
+date_published_source: "The upstream repository `ZHKKKe/MODNet` was created on 2020-11-23 (GitHub `created_at`, the previously recorded date) and published the photographic portrait-matting checkpoint with the paper's first arXiv version (arXiv:2011.11961, November 2020). The pinned Hub revision `71aca6d0…` (2023-04-16) is a third-party mirror of that file, byte-identical to the authors' Google Drive release (SHA-256 `7c22235f…`); its date is the mirror's, not the model's."
 ---
 
 # MODNet — Trimap-Free Portrait Matting (Alpha Mattes & Bounded Branch Fine-Tuning)
@@ -154,7 +154,7 @@ The model must not be used for identity verification, surveillance, covert profi
 
 | Field | Status |
 |---|---|
-| **DIMER status** | **Planned / conditional** — the `.ckpt` asset-format and deserialization-trust review the fleet inventory requires is what this repository implements; the review's acceptance, and the acceptance of a third-party Hub mirror as the staging source, are Kurt's call |
+| **DIMER status** | **Planned / conditional** — the `.ckpt` asset-format and deserialization-trust review DIMER requires is what this repository implements; the review's acceptance, and the acceptance of a third-party Hub mirror as the staging source, are the maintainer's call |
 | Licence | Apache-2.0 (weights and code per the upstream README's licence statement, and this repository's code) — use, modification, redistribution and commercial use permitted with the licence and notices preserved |
 | Weights | Would be redistributed converted, not unmodified: the served artifact is the deterministic safetensors derived from the pinned checkpoint, with the Drive origin, the mirror revision and both digests recorded (asset spec §11.2); this repository redistributes neither |
 | Remote code | **Not required** — no Hub-hosted module is imported; the model class is the vendored `modeling.py` |
