@@ -49,7 +49,7 @@ Two tasks are exposed. **Portrait matting:** input is an RGB image (uint8 array 
 
 ###### Primary Intended Users
 
-Intended users are computer-vision engineers, imaging and creative-tool developers, and machine-learning practitioners who work with portrait photographs, in research, product prototyping or the DIMER model workbench. The pipeline assumes its users understand that a matte's value is in its fractional band (hair, soft edges) and that whole-image MAD is dominated by the easy interior; that MODNet was trained on photographic portraits of one person against a background and knows nothing else; that a labelled alpha must belong to its image and mark the subject the operator means; that fine-tuning on a narrow domain moves the model everywhere, which the photographs after adaptation are there to show; and that a 20-portrait evaluation on drawings is a contract check, not a measurement of matting skill.
+Intended users are computer-vision engineers, imaging and creative-tool developers, and machine-learning practitioners who work with portrait photographs, in research or product prototyping. The pipeline assumes its users understand that a matte's value is in its fractional band (hair, soft edges) and that whole-image MAD is dominated by the easy interior; that MODNet was trained on photographic portraits of one person against a background and knows nothing else; that a labelled alpha must belong to its image and mark the subject the operator means; that fine-tuning on a narrow domain moves the model everywhere, which the photographs after adaptation are there to show; and that a 20-portrait evaluation on drawings is a contract check, not a measurement of matting skill.
 
 ###### Out-of-scope use cases
 
