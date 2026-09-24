@@ -337,6 +337,67 @@ def validate_identity_consistency() -> None:
         _check(not stray, f"{name} cites an unexpected 40-hex revision: {stray}")
 
 
+# --- weight-facts check (fleet rollout 2026-09-24) ---
+# Every SHA-256 digest and byte count quoted in the weight prose must come from a committed
+# weights/*/dimer-base-manifest.json, or be declared below with a label saying what it describes
+# (dataset files, upstream files that are not staged, origin checkpoints, totals). Declared entries
+# that no document cites any more are rejected, so the allowlist cannot go stale.
+WEIGHT_DOCS = ("README.md", "MODEL_CARD.md", "docs/WEIGHTS.md")
+EXTERNAL_WEIGHT_BYTES: dict[int, str] = {
+    163_911: "header pickle streams of upstream modnet_photographic_portrait_matting.ckpt",
+    17_060_652: "adapter.safetensors from save_artifact (default config, Kaggle run 2026-09-19)",
+    26_135_396: "converted modnet-photographic-portrait-matting.safetensors (regenerated, not staged)",
+}
+EXTERNAL_WEIGHT_DIGESTS: dict[str, str] = {
+    "0ec6d832a873ea38974077b23920da806cc2e44e5553c7ee12e7cb7b921bcc6b": "converted modnet-photographic-portrait-matting.safetensors (regenerated)",
+    "2f26f5f0915d28bd059a998462b53195dfd33d11e78bd536c632aa1bb8885004": "ZHKKKe/MODNet@28165a4 src/models/modnet.py (vendored source)",
+    "41197be7eb96b8a60dc034b55d8c9340dd682a41441dcf2ce67238955dfa5607": "ZHKKKe/MODNet@28165a4 src/models/backbones/wrapper.py (vendored source)",
+    "5b9f0ba08490293d6c17b9cef219991e1a6edda31609429679f8dca1af5a7b10": "pickle-audit digest of modnet_photographic_portrait_matting.ckpt globals",
+    "ced99145de65eb2d78fb7ab2c13f9f94070096475a5acec855adea2b9e629eab": "ZHKKKe/MODNet@28165a4 src/trainer.py (losses re-implemented)",
+    "e3cc8ad6a9933ba18a17a62d5f887c64e0721240871ea8b48742fb9a8a2c3199": "ZHKKKe/MODNet@28165a4 src/models/backbones/mobilenetv2.py (vendored source)",
+}
+_DIGEST = re.compile(r"(?<![0-9a-fA-F])[0-9a-f]{64}(?![0-9a-fA-F])")
+_GROUPED = r"(\d{1,3}(?:[,\u202f\u00a0 ]\d{3})+|\d+)"
+_BYTE_COUNT = re.compile(r"(?<![\d,\-])" + _GROUPED + r"\s*bytes\b|totalBytes`?\s*" + _GROUPED)
+
+
+def _manifest_facts(root: Path = ROOT) -> tuple[set[str], set[int]]:
+    digests: set[str] = set()
+    sizes: set[int] = set()
+    for path in sorted(root.glob("weights/*/dimer-base-manifest.json")):
+        manifest = json.loads(_read(path))
+        sizes.add(manifest["totalBytes"])
+        for entry in manifest["files"]:
+            digests.add(entry["sha256"])
+            sizes.add(entry["bytes"])
+    return digests, sizes
+
+
+def validate_weight_facts(root: Path = ROOT) -> None:
+    """Every SHA-256 and byte count quoted in the weight prose must come from a manifest or a labelled allowlist entry."""
+    digests, sizes = _manifest_facts(root)
+    _check(bool(digests), "no weights/*/dimer-base-manifest.json found to check weight facts against")
+    cited_digests: set[str] = set()
+    cited_sizes: set[int] = set()
+    for name in WEIGHT_DOCS:
+        path = root / name
+        if not path.exists():
+            continue
+        text = _read(path)
+        found_digests = set(_DIGEST.findall(text))
+        found_sizes = {int(re.sub(r"[,\u202f\u00a0 ]", "", m.group(1) or m.group(2))) for m in _BYTE_COUNT.finditer(text)}
+        cited_digests |= found_digests
+        cited_sizes |= found_sizes
+        bad_digests = sorted(found_digests - digests - set(EXTERNAL_WEIGHT_DIGESTS))
+        _check(not bad_digests, f"{name} cites SHA-256 digests absent from every manifest and from EXTERNAL_WEIGHT_DIGESTS: {bad_digests}")
+        bad_sizes = sorted(found_sizes - sizes - set(EXTERNAL_WEIGHT_BYTES))
+        _check(not bad_sizes, f"{name} cites byte counts absent from every manifest and from EXTERNAL_WEIGHT_BYTES: {bad_sizes}")
+    stale = sorted(set(EXTERNAL_WEIGHT_BYTES) - cited_sizes) + sorted(set(EXTERNAL_WEIGHT_DIGESTS) - cited_digests)
+    _check(not stale, f"EXTERNAL_WEIGHT_* entries no weight document cites any more: {stale}")
+
+
+# --- end weight-facts check ---
+
 def validate_release_status() -> None:
     """STATUS.md, README.md and tutorials/README.md must agree on one status token."""
     status = _read(ROOT / "STATUS.md")
@@ -595,9 +656,10 @@ def validate_notebooks() -> None:
 def validate_all() -> list[str]:
     validate_model_card()
     validate_identity_consistency()
+    validate_weight_facts()
     validate_release_status()
     validate_notebooks()
-    return ["model-card", "identity-consistency", "release-status", "notebook+parity"]
+    return ["model-card", "identity-consistency", "weight-facts", "release-status", "notebook+parity"]
 
 
 def main() -> int:
