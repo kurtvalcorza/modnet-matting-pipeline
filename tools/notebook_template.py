@@ -46,6 +46,20 @@ TEMPLATE = {
     "notebook_name": "modnet_matting_colab.ipynb",
     "profile": "E2E",
     "mode": "GUIDED",
+    "isolated_runtime": True,
+    "infrastructure_labels": True,
+    # The fleet's uv isolated-environment mechanism (generator /2.2): managed CPython, a
+    # size- and SHA-256-verified uv wheel, and a lock compiled from the pyproject pins with
+    # `uv pip compile pyproject.toml --python-version 3.12 --python-platform x86_64-manylinux_2_28 --generate-hashes
+    # --only-binary :all: -o tutorials/requirements-colab.lock.txt`.
+    "managed_python": "3.12.12",
+    "uv": {
+        "version": "0.12.15",
+        "url": "https://files.pythonhosted.org/packages/1e/fd/432451d732917c49152a291de3ef171aa6b0f1a22d39780fb2c1f085ca4c/uv-0.12.15-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "bytes": 20081404,
+        "sha256": "aee9802f46bae436bd91751bb33ddeb379ef1596b5c19df193219d545d244b60",
+    },
+    "lock": "tutorials/requirements-colab.lock.txt",
     "run_all": (
         "Selecting **Run all** in a fresh runtime (CPU or GPU) installs the pinned dependencies (torch, numpy, Pillow, safetensors, "
         "huggingface-hub), stages and digest-verifies the pinned MODNet checkpoint (25 MB) from the Hub, statically audits the legacy "
@@ -59,11 +73,11 @@ TEMPLATE = {
         "minute; on a CPU the adaptation takes a few minutes."
     ),
     "byod": (
-        "Two gates, both off by default. After the tutorial workflow completes, set `USE_BYOD = True` in Section 4 and re-run from that "
+        "Two gates, both off by default. After the tutorial workflow completes, set `USE_BYOD = True` and `BYOD_PATH` (a zip already in the runtime; on Colab an empty path opens an upload dialog) in Section 4 and re-run from that "
         "cell to supply your own labelled portraits as a zip holding `pairs.csv` (columns `id`, `image`, `alpha`) beside RGB images and "
         "8-bit greyscale alpha PNGs (0 = background, 255 = subject); at least four pairs. Pairs are resized to 512 × 512, split by seed "
         "into training, validation and test sets and flow through the same contract — validation, frozen baseline, adaptation, held-out "
-        "evaluation, inference, artifact export and reload parity. Set `USE_BYOD_PHOTO = True` in Section 8 to upload one photograph of "
+        "evaluation, inference, artifact export and reload parity. Set `USE_BYOD_PHOTO = True` and `BYOD_PHOTO_PATH` (or leave it empty on Colab to upload) in Section 8 to matte one photograph of "
         "your own and matte it with the frozen and the adapted model (no label needed). The expected schemas, the ceilings and the "
         "privacy guidance are stated in the Prerequisites and in Sections 4 and 8, and uploaded files stay inside this runtime. BYOD is "
         "optional and never part of the default path."
@@ -95,6 +109,9 @@ TEMPLATE = {
         "error on them and the adapted model's error are the tutorial's evidence; a real portrait enters only through the photograph "
         "gate in Section 8, and the point of the contract is the same recipe on *your* labelled portraits."
     ),
+    "guided": {"opening": [(
+        "**Who this notebook is for.** A learner who knows basic Python, has used Colab or Jupyter and has met image segmentation, and wants to see what an alpha matte is, how a trimap-free matting model is scored honestly against constant baselines, and how to fine-tune part of it on labelled portrait/alpha pairs without fooling themselves. The audience is students and practitioners preparing their own matting data; no prior experience with MODNet, matting losses or fine-tuning is assumed — each term is explained where it first matters and again in the **Glossary**. CPU is enough; a T4 makes the fine-tuning take seconds instead of minutes.\n\n**Input → Model → Output.**\n\n| | Matting (inference) | Bounded fine-tuning |\n|---|---|---|\n| Input | one RGB image, both sides 64–4096 px (resized internally to a short side of 512, multiples of 32) | labelled records `{{id, image, alpha}}` at 512 × 512: 80 drawn portraits rendered in the kernel (48 train, 12 validation, 20 test) or your own zip |\n| Model | MODNet: MobileNetV2 low-resolution branch, high-resolution detail branch, fusion branch (6.5 M parameters), loaded from the audited safetensors conversion | the same model with the three matting branches trainable (4.26 M parameters) and the backbone and BatchNorm statistics frozen |\n| Output | a per-pixel alpha matte in [0, 1] at the input size, plus a cut-out on white | an `adapter.safetensors` (about 17 MB) with a manifest, and held-out MAD / MSE / SAD / unknown-band MAD beside the frozen model and two constant baselines |\n\n**How to use this notebook.** Choose a runtime (**Runtime → Change runtime type → T4 GPU** is faster; CPU works), then **Runtime → Run all**. Run all completes in one pass: Section 1 installs nothing into the notebook's own Python, so no restart is needed. Sections 1–3 are **infrastructure** — the isolated environment, the carried modules and the audited checkpoint — and their cells are collapsed; you may run them without studying them. The learning path starts in Section 4. Form fields (`# @param`) are the only values meant to be edited, and the defaults reproduce the build record. Before each principal result the notebook asks you to **Predict**; after it comes a collapsible **Check your reasoning** with a worked answer from the repository's build record (a local run; your numbers can differ in the last digits, and no hosted per-cell outputs are recorded yet). **Troubleshooting**, a **Glossary** and a **Conclusion** template are at the end. Writing your predictions down is optional.\n\n**Roadmap:** 1–3 infrastructure → 4 labelled portraits, validation and refusal probes *(evaluation practice: the data contract)* → 5 the frozen model against constant baselines *(core concept: MAD and the unknown band)* → 6 bounded fine-tuning of the matting branches *(core concept: what is trained)* → 7 the paired held-out comparison *(evaluation practice)* → 8 adapted mattes, an optional photograph of your own, export and fresh reload *(engineering)* → conclude."
+    )]},
     "learning_objectives": (
         "install the pinned runtime; inspect the carried pipeline, dataset, metrics and model modules; stage and digest-verify a legacy "
         "pickled checkpoint, read its static audit and see it converted into safetensors; render labelled portraits with exact mattes and "
@@ -109,10 +126,11 @@ TEMPLATE = {
         "claim that 20 drawn portraits stand in for one. The repository exposes none of these."
     ),
     "prerequisites": [
-        "- **Runtime:** a fresh supported runtime — Google Colab (CPU or T4), Kaggle, or a Jupyter kernel with Python 3.12. The model has 6.5 M parameters: a 512 × 512 matte takes well under a second on a CPU, the default adaptation about 2 s per epoch on a T4 and about half a minute per epoch on a laptop CPU. About 100 MB of disk is needed for the checkpoint and its conversion.",
+        "- **Learner:** basic Python and Colab or Jupyter familiarity; no prior experience with MODNet, matting or fine-tuning. Alpha mattes, trimaps and the unknown band, MAD / MSE / SAD, constant baselines, epochs and validation selection are explained where they are first used and again in the Glossary.",
+        "- **Runtime:** a fresh supported **Linux x86_64** runtime — Google Colab (CPU or T4), Kaggle, or Linux Jupyter. Section 1 builds its own Python 3.12.12 environment from a hash-locked list of manylinux wheels, so the kernel's own Python version does not matter and nothing is installed into it; a Windows or macOS kernel is not supported. The model has 6.5 M parameters: a 512 × 512 matte takes well under a second on a CPU, the default adaptation about 2 s per epoch on a T4 and about half a minute per epoch on a laptop CPU. About 100 MB of disk is needed for the checkpoint and its conversion.",
         "- **Knowledge:** what an alpha matte is (per-pixel opacity of the subject, fractional along hair and soft edges), what a trimap's unknown band is, and how MAD / MSE / SAD are read against a constant baseline.",
         "- **Executable serialization handled explicitly:** the pinned checkpoint is a legacy torch pickle. It is digest-verified, statically audited against an allow-list (audit digest pinned) and unpickled **once** through torch's weights-only loader to produce the safetensors the model is actually loaded from. No Hub-hosted Python module is imported; the architecture is carried verbatim from the repository (`modeling.py`, vendored from the upstream repository at a pinned commit).",
-        "- **Data contract:** a record is `{{id, image, alpha}}` — an RGB uint8 image (any size with both sides in [64, 4096] for inference; exactly 512 × 512 for labelled records) and an alpha in [0, 1] of the same size. Validation is structural: nothing checks that the image shows a person, that the alpha belongs to the image, or that the alpha marks the subject rather than something else.",
+        "- **Data contract:** a record is `{id, image, alpha}` — an RGB uint8 image (any size with both sides in [64, 4096] for inference; exactly 512 × 512 for labelled records) and an alpha in [0, 1] of the same size. Validation is structural: nothing checks that the image shows a person, that the alpha belongs to the image, or that the alpha marks the subject rather than something else.",
         "- **Privacy:** Do not upload confidential or restricted data to a hosted runtime unless you are authorized to process it there — photographs of identifiable people you have no consent to process are exactly that. The default path uploads nothing and fetches no photograph.",
         "- **External access (data):** none. The labelled portraits are rendered in the kernel; the only download on the default path is the model snapshot below.",
     ],
@@ -128,24 +146,44 @@ TEMPLATE = {
                 "Look for: 48 / 12 / 20 records with foreground fractions around 0.34 and 2 % fractional-alpha pixels, a written "
                 "sample pair (`outputs/{stem}_sample_portrait.png` + `_sample_alpha.png`, the BYOD shape), and three refusal probes — "
                 "an alpha outside [0, 1], a labelled record that is not 512 × 512, and a dataset whose alphas are all background — "
-                "each rejected before the model runs."
+                "each rejected before the model runs.\n\n"
+                "**Predict before running:** which of the three refusal probes will be accepted, if any? And what MAD would a "
+                "matte that marks every pixel as background score on these portraits?"
             ),
             "code": (
                 "import json\n"
                 "import os\n"
                 "from pathlib import Path\n\n"
                 "import numpy as np\n\n"
-                "USE_BYOD = False  # @param {{type:\"boolean\"}}\n\n"
+                "USE_BYOD = False  # @param {{type:\"boolean\"}}\n"
+                "BYOD_PATH = ''  # @param {{type:\"string\"}}\n\n\n"
+                "def byod_file(path, kind, suffixes=()):\n"
+                "    \"\"\"BYOD path first (works on Colab, Kaggle and Jupyter); on Colab an empty path opens the upload dialog.\"\"\"\n"
+                "    if str(path).strip():\n"
+                "        source = Path(str(path).strip()).expanduser()\n"
+                "        if not source.is_file():\n"
+                "            raise FileNotFoundError(f'BYOD path {{str(source)!r}} does not exist or is not a file (relative paths start at {{os.getcwd()}}); give the path of one {{kind}}.')\n"
+                "    else:\n"
+                "        try:\n"
+                "            from google.colab import files\n"
+                "        except ImportError:\n"
+                "            raise RuntimeError(f'BYOD is on but its path field is empty, and the upload dialog exists only in Google Colab: copy the {{kind}} into this runtime (or attach it as a Kaggle dataset) and set the path field.') from None\n"
+                "        uploaded = files.upload()\n"
+                "        if len(uploaded) != 1:\n"
+                "            raise ValueError(f'Upload exactly one {{kind}} (received {{len(uploaded)}} files; a cancelled dialog sends none). Run this cell again.')\n"
+                "        name, payload = next(iter(uploaded.items()))\n"
+                "        source = Path('work') / Path(name).name\n"
+                "        source.parent.mkdir(parents=True, exist_ok=True)\n"
+                "        source.write_bytes(payload)\n"
+                "    if suffixes and not source.name.lower().endswith(tuple(suffixes)):\n"
+                "        raise ValueError(f'{{source.name}}: expected a {{kind}} ending in {{\" or \".join(suffixes)}}.')\n"
+                "    return source\n"
+                "\n\n"
                 "os.makedirs('outputs', exist_ok=True)\n"
                 "if USE_BYOD:\n"
-                "    from google.colab import files\n"
-                "    uploaded = files.upload()\n"
-                "    file_name, payload = next(iter(uploaded.items()))\n"
-                "    byod_path = Path('work') / file_name\n"
-                "    byod_path.parent.mkdir(parents=True, exist_ok=True)\n"
-                "    byod_path.write_bytes(payload)\n"
+                "    byod_path = byod_file(BYOD_PATH, 'labelled-portrait .zip archive (pairs.csv + images + alpha PNGs)', ('.zip',))\n"
                 "    splits = split_dataset(load_byod_dataset(byod_path), seed=0)\n"
-                "    data_source = 'BYOD (' + file_name + ')'\n"
+                "    data_source = 'BYOD (' + byod_path.name + ')'\n"
                 "else:\n"
                 "    splits = sample_dataset()\n"
                 "    data_source = SAMPLE_LABEL_SOURCE\n"
@@ -173,6 +211,15 @@ TEMPLATE = {
         },
         {
             "md": (
+                "<details><summary>Check your reasoning</summary>All three probes are refused before the model runs: an alpha above 1 "
+                "is not an opacity, a labelled record must be exactly 512 × 512, and a dataset whose alphas are all background "
+                "has no subject to learn. The build record shows foreground fractions around 0.34 per split. That number matters "
+                "in Section 5: an all-background matte scores a MAD equal to the foreground fraction, so any model must get well "
+                "below about 0.34 to have found the subject.</details>"
+            ),
+        },
+        {
+            "md": (
                 "## 5. The frozen model: constant baselines and held-out errors\n\n"
                 "`pipe.predict` normalises each image to [−1, 1], resizes it as the upstream inference script does (short side 512, both "
                 "sides multiples of 32), runs the three branches and returns the fusion branch's sigmoid output as the matte at the input "
@@ -184,7 +231,9 @@ TEMPLATE = {
                 "Look for: a frozen test MAD near 0.08 (in the build record 0.079, against 0.341 for all-background and 0.659 for "
                 "all-foreground) — the photographic model finds the drawn heads but drops parts of the drawn clothing and misses strands. "
                 "The frozen mattes and cut-outs on white of the first two test portraits are written to `outputs/` beside their exact "
-                "alphas, so the failure can be seen. These are sample-sanity numbers on 20 and 12 drawn portraits, not a benchmark."
+                "alphas, so the failure can be seen. These are sample-sanity numbers on 20 and 12 drawn portraits, not a benchmark.\n\n"
+                "**Predict before running:** the checkpoint was trained on photographs. On drawn portraits, will its test MAD be "
+                "closer to 0, or closer to the all-background baseline?"
             ),
             "code": (
                 "import time\n\n"
@@ -214,6 +263,15 @@ TEMPLATE = {
         },
         {
             "md": (
+                "<details><summary>Check your reasoning</summary>In the build record the frozen test MAD was 0.079, against 0.341 "
+                "for all-background and 0.659 for all-foreground: far better than either constant, so the photographic model does "
+                "find the drawn figures. It is not near zero because it drops parts of the drawn clothing and misses thin strands "
+                "— look at the written frozen mattes beside the reference alphas. The unknown-band MAD (0.085 in the build "
+                "record) is higher than the overall MAD because it is measured only where the matte is hard.</details>"
+            ),
+        },
+        {
+            "md": (
                 "## 6. Bounded fine-tuning of the matting branches\n\n"
                 "`pipe.adapt` trains the low-resolution branch's SE block and convolutions, the high-resolution branch and the fusion "
                 "branch (4.26 M parameters — 66 % of the model) and nothing else: the MobileNetV2 backbone is frozen (no gradient is "
@@ -225,7 +283,11 @@ TEMPLATE = {
                 "epoch with the lowest validation loss is kept.\n\n"
                 "Watch the validation loss: in the build record it fell from 0.80 to about 0.06 by epoch 4 and drifted afterwards, and "
                 "the validation MAD from 0.064 to about 0.004. Six epochs (72 steps) take about 15 s on a T4 and about 3 minutes on a "
-                "laptop CPU. `TRAINABLE = 'full'` also unfreezes the backbone (6.49 M parameters)."
+                "laptop CPU. `TRAINABLE = 'full'` also unfreezes the backbone (6.49 M parameters). The cell snapshots the pinned weights "
+                "once, before any training, and restores them at the start of every run, so changing a field and running it again "
+                "is a fresh adaptation of the frozen model, never a continuation of the previous one.\n\n"
+                "**Predict before running:** will the validation loss keep falling for all six epochs? Which epoch do you expect "
+                "to be kept?"
             ),
             "code": (
                 "EPOCHS = 6  # @param {{type:\"integer\"}}\n"
@@ -242,10 +304,42 @@ TEMPLATE = {
                 "    if 'note' in entry:\n"
                 "        row['note'] = entry['note']\n"
                 "    print(row)\n\n"
+                "# SWP-F: the pinned weights are snapshotted once, before any training, and every run of this cell restarts\n"
+                "# from them, so a re-run with other hyperparameters never stacks on the previous adaptation and epoch 0\n"
+                "# really is the frozen model.\n"
+                "import copy\n"
+                "import hashlib\n\n"
+                "def state_digest(state):\n"
+                "    digest = hashlib.sha256()\n"
+                "    for name in sorted(state):\n"
+                "        digest.update(name.encode('utf-8'))\n"
+                "        digest.update(state[name].detach().cpu().contiguous().numpy().tobytes())\n"
+                "    return digest.hexdigest()\n\n"
+                "if '_FROZEN_STATE' not in globals():\n"
+                "    if pipe.adapter is not None:\n"
+                "        raise RuntimeError('pipe was adapted before the frozen snapshot was taken; restart the session and choose Run all.')\n"
+                "    _FROZEN_STATE = copy.deepcopy(pipe.model.state_dict())\n"
+                "    _FROZEN_DIGEST = state_digest(_FROZEN_STATE)\n"
+                "pipe.model.load_state_dict(_FROZEN_STATE, strict=True)\n"
+                "pipe.model.eval()\n"
+                "pipe.adapter = None\n"
+                "if state_digest(pipe.model.state_dict()) != _FROZEN_DIGEST:\n"
+                "    raise RuntimeError('restoring the frozen weights did not reproduce their digest')\n"
+                "print({{'restarted_from_frozen_weights': True, 'frozen_state_sha256': _FROZEN_DIGEST[:16] + '...'}})\n\n"
                 "t0 = time.perf_counter()\n"
                 "adapt_result = pipe.adapt(train_records, val_records, epochs=EPOCHS, lr=LEARNING_RATE, batch_size=BATCH_SIZE, trainable=TRAINABLE, progress=report)\n"
                 "adapt_seconds = round(time.perf_counter() - t0, 1)\n"
                 "print({{'trainable_parameters': adapt_result['n_trainable'], 'total_parameters': adapt_result['n_total'], 'steps': adapt_result['n_steps'], 'best_epoch': adapt_result['best_epoch'], 'losses': adapt_result['losses'], 'batchnorm': adapt_result['batchnorm'], 'seconds': adapt_seconds}})"
+            ),
+        },
+        {
+            "md": (
+                "<details><summary>Check your reasoning</summary>In the build record the validation loss fell from 0.80 (epoch 0, "
+                "the frozen model) to about 0.06 by epoch 4 and then drifted slightly, so the kept epoch was not the last one: "
+                "selection is by validation loss, and epoch 0 is a candidate, so the procedure can never keep a model that is "
+                "worse on validation than the frozen one. 48 portraits at batch size 4 is 12 steps per epoch, 72 for six epochs. "
+                "The cell first restores the frozen weights, so running it again with another `EPOCHS` or `TRAINABLE` starts "
+                "from the same pinned model.</details>"
             ),
         },
         {
@@ -255,11 +349,13 @@ TEMPLATE = {
                 "model is scored exactly as the frozen model was in Section 5, and the table puts the baselines, the frozen and the "
                 "adapted numbers side by side. The cell asserts what the procedure guarantees — the kept epoch's validation loss is no "
                 "higher than the frozen model's, and re-scoring the validation portraits reproduces the kept epoch's MAD within 0.001 — "
-                "and it also asserts that the adapted test MAD is below the frozen one: on drawn portraits the domain shift is large "
-                "enough that the build record moved the test MAD from 0.079 to 0.004 (unknown-band MAD 0.085 → 0.025) on every "
-                "hyperparameter probe, so a failure here is a finding, not noise. The size of the gain, and its reading — the model "
+                "and it **reports** (rather than asserts) whether the adapted test MAD is below the frozen one, as the verdict `improved`, "
+                "`no gain` or `worse`, so a run on your own data that does not improve still writes its report and exports: on drawn "
+                "portraits the domain shift is large enough that the build record moved the test MAD from 0.079 to 0.004 (unknown-band "
+                "MAD 0.085 → 0.025) on every hyperparameter probe, so anything but `improved` on the default path is a finding, not noise. The size of the gain, and its reading — the model "
                 "learned the drawing style, on 48 portraits, with one seed and no dispersion estimate — is not a quality claim about "
-                "photographs; with your own portraits the gap between frozen and adapted is the number to watch."
+                "photographs; with your own portraits the gap between frozen and adapted is the number to watch.\n\n"
+                "**Predict before running:** which will improve more after fine-tuning — the overall test MAD or the unknown-band MAD?"
             ),
             "code": (
                 "adapted_test = pipe.evaluate(test_records)\n"
@@ -282,12 +378,26 @@ TEMPLATE = {
                 "    'history': adapt_result['history'],\n"
                 "    'adaptation_seconds': adapt_seconds,\n"
                 "}}\n"
+                "delta_mad = adapted_test['model']['mad'] - frozen_test['model']['mad']\n"
+                "adaptation_verdict = 'improved' if delta_mad < 0 else ('no gain' if delta_mad == 0 else 'worse')\n"
+                "evaluation_report['verdicts'] = {{'adapted_vs_frozen_test_mad': adaptation_verdict, 'delta_mad': round(delta_mad, 6)}}\n"
                 "with open('outputs/{stem}_evaluation_report.json', 'w', encoding='utf-8') as f:\n"
                 "    json.dump(evaluation_report, f, indent=2)\n"
                 "assert best['val_loss'] <= adapt_result['history'][0]['val_loss']\n"
                 "assert abs(adapted_val['model']['mad'] - best['val']['mad']) < 1e-3\n"
-                "assert adapted_test['model']['mad'] < frozen_test['model']['mad']\n"
-                "print({{'report': 'outputs/{stem}_evaluation_report.json'}})"
+                "print({{'verdict': adaptation_verdict, 'delta_test_mad': round(delta_mad, 6), 'report': 'outputs/{stem}_evaluation_report.json'}})\n"
+                "if adaptation_verdict != 'improved':\n"
+                "    print('The adapted model did not beat the frozen one on the held-out test split; the report, export and reload still run. Read the baselines and the history before trusting either model.')"
+            ),
+        },
+        {
+            "md": (
+                "<details><summary>Check your reasoning</summary>In the build record the test MAD moved from 0.079 to 0.004 and the "
+                "unknown-band MAD from 0.085 to 0.025. The overall gain is large because the domain gap — drawn figures — is large "
+                "and easy to learn from 48 examples; the unknown-band number is the honest one for matting, and it improved less. "
+                "One seed and 20 test portraits give no dispersion estimate. The verdict line reports `improved`, `no gain` or "
+                "`worse` instead of stopping the notebook, so a BYOD run that does not improve still exports and records its "
+                "result.</details>"
             ),
         },
         {
@@ -295,7 +405,7 @@ TEMPLATE = {
                 "## 8. Adapted mattes, an optional photograph of your own, artifact export and fresh reload\n\n"
                 "The adapted model mattes the same two held-out portraits as Section 5; their adapted mattes and cut-outs are written "
                 "next to the frozen ones and the exact alphas, and the per-portrait MAD before and after is printed. Set "
-                "`USE_BYOD_PHOTO = True` to upload one photograph of your own (JPEG or PNG; it is downscaled once to 1536 pixels on the "
+                "`USE_BYOD_PHOTO = True` and `BYOD_PHOTO_PATH` (an image already in the runtime; on Colab an empty path opens an upload dialog) to matte one photograph of your own (JPEG or PNG; it is downscaled once to 1536 pixels on the "
                 "long side and never leaves this runtime): the frozen and the adapted model both matte it, the two mattes and cut-outs "
                 "are written, and the mean absolute difference between them is printed — an unlabelled sanity check on whether learning "
                 "the drawing style moved the model on a real portrait, not an evaluation. The default path uploads nothing.\n\n"
@@ -309,19 +419,15 @@ TEMPLATE = {
             "code": (
                 "import platform\n"
                 "import shutil\n\n"
-                "USE_BYOD_PHOTO = False  # @param {{type:\"boolean\"}}\n\n"
+                "USE_BYOD_PHOTO = False  # @param {{type:\"boolean\"}}\n"
+                "BYOD_PHOTO_PATH = ''  # @param {{type:\"string\"}}\n\n"
                 "adapted_shown = pipe.predict(shown_records)\n"
                 "for record, before, after in zip(shown_records, frozen_shown['predictions'], adapted_shown['predictions']):\n"
                 "    write_matte(record, after['alpha'], 'adapted')\n"
                 "    print({{'portrait': record['id'], 'mad_frozen': round(float(np.abs(before['alpha'] - record['alpha']).mean()), 4), 'mad_adapted': round(float(np.abs(after['alpha'] - record['alpha']).mean()), 4)}})\n"
                 "photo_report = None\n"
                 "if USE_BYOD_PHOTO:\n"
-                "    from google.colab import files\n"
-                "    uploaded_photo = files.upload()\n"
-                "    photo_name, photo_payload = next(iter(uploaded_photo.items()))\n"
-                "    photo_path = Path('work') / photo_name\n"
-                "    photo_path.parent.mkdir(parents=True, exist_ok=True)\n"
-                "    photo_path.write_bytes(photo_payload)\n"
+                "    photo_path = byod_file(BYOD_PHOTO_PATH, 'photograph (JPEG or PNG)', ('.jpg', '.jpeg', '.png'))\n"
                 "    photo = load_photo(photo_path, record_id='own-photograph')\n"
                 "    frozen_photo = ModNetMattingPipeline.from_pretrained(weights_dir=WEIGHTS_DIR, device=pipe.device).predict([photo])['predictions'][0]\n"
                 "    adapted_photo = pipe.predict([photo])['predictions'][0]\n"
@@ -403,7 +509,40 @@ TEMPLATE = {
         "establish benchmark superiority, production fitness, or matting skill on photographs beyond the checks shown.\n\n"
         "**Optional experiments (they do not affect the default path):** set `TRAINABLE = 'full'` and compare; raise `EPOCHS` and "
         "watch the validation loss drift; try `LEARNING_RATE = 5e-5`; matte a photograph of your own through `USE_BYOD_PHOTO`; or "
-        "bring your own labelled portraits through BYOD and read the baselines before the adapted number.\n\n"
+        "bring your own labelled portraits through BYOD and read the baselines before the adapted number. Re-running Section 6 "
+        "restarts from the frozen weights, then run Sections 7 and 8 again; each run replaces the default report and adapter.\n\n"
+        "## Troubleshooting\n\n"
+        "- **Section 1 stops with \"This notebook needs a Linux x86_64 runtime\"** — use Google Colab, Kaggle or a Linux x86_64 Jupyter server.\n"
+        "- **The uv wheel fails its size/SHA-256 check, or a download in Section 1 times out** — run Section 1 again; a complete environment is reused and an incomplete one is finished. If it repeats, `files.pythonhosted.org` or `pypi.org` is blocked or altered.\n"
+        "- **You re-ran Section 1 on its own** — nothing is lost: it keeps the running worker and every variable. After a session restart, run from the top.\n"
+        "- **\"The isolated environment's Python process exited\"** — usually out of memory; restart the session and choose **Run all**.\n"
+        "- **Section 3 refuses the checkpoint (size, SHA-256 or audit mismatch) or cannot reach the Hub** — the message names the file. Delete the folder Section 3 prints as `weights_dir` and run Section 3 again; never bypass the audit.\n"
+        "- **Section 7 prints a verdict other than `improved`** — on the default path that is a finding worth recording; on your own data, check the baselines, the history and whether the alphas belong to the images.\n"
+        "- **CUDA out of memory in Section 6** — set `BATCH_SIZE = 2` and run Sections 6–8 again (numbers will differ from the build record).\n"
+        "- **BYOD: \"BYOD path … does not exist\"** — the path is relative to the working directory printed in the message.\n"
+        "- **BYOD: \"the upload dialog exists only in Google Colab\"** — on Kaggle or Jupyter, copy the file into the runtime and set `BYOD_PATH` / `BYOD_PHOTO_PATH`.\n"
+        "- **BYOD: \"Upload exactly one …\"** — the dialog was cancelled or several files were chosen; run the cell again.\n"
+        "- **BYOD: a refusal from `load_byod_dataset` or `validate_dataset`** — it names the `pairs.csv` row, the member or the rule (size, alpha range, all-background); fix that pair.\n\n"
+        "## Glossary\n\n"
+        "- **Alpha matte** — per-pixel opacity of the subject in [0, 1]; fractional along hair and soft edges, unlike a binary mask.\n"
+        "- **Trimap / unknown band** — a map of sure background, sure foreground and the uncertain band between them; here the band is every fractional-alpha pixel grown by 8 pixels.\n"
+        "- **Trimap-free matting** — predicting the matte from the image alone, as MODNet does.\n"
+        "- **MAD / MSE / SAD** — mean absolute difference, mean squared error and summed absolute difference (÷ 1000) between predicted and reference alpha.\n"
+        "- **Constant baselines** — the all-background and all-foreground mattes; all-background MAD equals the foreground fraction.\n"
+        "- **Semantic / detail / matte loss** — the upstream training objective's three parts: coarse subject, boundary detail, final matte (with a compositional term).\n"
+        "- **Matting branches / backbone** — the trainable low-resolution, high-resolution and fusion branches, and the frozen MobileNetV2 feature extractor.\n"
+        "- **BatchNorm statistics frozen** — the running means and variances are not updated by small training batches.\n"
+        "- **Epoch / validation selection** — one pass over the training portraits; keeping the epoch with the lowest validation loss (epoch 0, the frozen model, included).\n"
+        "- **Held-out test split** — portraits never used for training or selection; the numbers to report.\n"
+        "- **Pickle / safetensors** — an executable Python serialisation (audited and converted once here) and a tensor-only format (what the model loads).\n"
+        "- **Adapter / reload parity** — the trained tensors only, overlaid on the pinned base; reloading them from disk gives the same mattes.\n"
+        "- **BYOD** — bring your own data: your labelled portraits or a photograph through the same cells.\n\n"
+        "## Conclusion (your notes)\n\n"
+        "Optional — fill in from **your** run:\n\n"
+        "- The frozen test MAD was ___ against baselines of ___ (all-background) and ___ (all-foreground).\n"
+        "- Fine-tuning kept epoch ___; the test MAD moved to ___ and the unknown-band MAD from ___ to ___; the verdict was ___.\n"
+        "- On my own photograph (if any) the adapted matte differed from the frozen one by ___ because ___.\n"
+        "- One reason not to trust this gain on real portraits yet: ___.\n\n"
         "## References\n\n"
         "- Repository README: https://github.com/kurtvalcorza/modnet-matting-pipeline/blob/main/README.md\n"
         "- Repository model card: https://github.com/kurtvalcorza/modnet-matting-pipeline/blob/main/MODEL_CARD.md\n"
