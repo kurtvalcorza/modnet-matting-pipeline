@@ -644,7 +644,8 @@ class ModNetMattingPipeline:
         import numpy as np
         import torch
 
-        batch = torch.from_numpy(np.ascontiguousarray(images)).to(self.device).permute(0, 3, 1, 2).float()
+        # np.require copies a read-only array (PIL-backed images are), so torch.from_numpy never warns about it.
+        batch = torch.from_numpy(np.require(images, requirements=("C", "W"))).to(self.device).permute(0, 3, 1, 2).float()
         return (batch / 255.0 - 0.5) / 0.5
 
     def _matte_one(self, image: Any) -> Any:
