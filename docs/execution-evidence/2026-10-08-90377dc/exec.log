@@ -1,0 +1,99 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/modnet-matting-pipeline-90377dc-6a7589/modnet_matting_colab_90377dc_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/12 - Infrastructure: build (or reuse) the isolated environment and route later cells to it...
+{'isolated_environment': '/content/dimer_isolated_env_69e206099225', 'reused': False, 'isolated_python': '3.12.12', 'kernel_python': '3.13.15', 'locked_packages': 44, 'setup_seconds': 65}
+{'routed_to': '/content/dimer_isolated_env_69e206099225/bin/python', 'worker_pid': 1316, 'worker_reused': False}
+[colab] Executing cell 2/12 - Infrastructure: record the runtime...
+{'notebook_source': {'repository': 'modnet-matting-pipeline', 'repository_revision': '220b68af0c7e1a31d8324bd68fae1e2f83c4c54c', 'embedded_module': 'src/modnet_matting_pipeline/pipeline.py', 'embedded_modules': ['src/modnet_matting_pipeline/metrics.py', 'src/modnet_matting_pipeline/modeling.py', 'src/modnet_matting_pipeline/pipeline.py', 'src/modnet_matting_pipeline/samples.py'], 'module_sha256': '1b4798370cf71a97bdad8ecf41c0877760cbff25c869df14f2c80cd9bd2d8165', 'generator': 'build_notebook.py/2.2', 'notebook_spec': '2.2'}, 'python': '3.12.12', 'executable': '/content/dimer_isolated_env_69e206099225/bin/python', 'torch': '2.14.0+cu130', 'PIL': '11.3.0', 'cuda': True}
+[colab] Executing cell 3/12 - modnet_matting-08...
+[colab] Executing cell 4/12 - modnet_matting-10...
+[colab] Executing cell 5/12 - modnet_matting-12...
+[colab] Executing cell 6/12 - modnet_matting-14...
+[colab] Executing cell 7/12 - Infrastructure: stage and digest-verify the pinned snapshot, then load the model...
+{'model_id': 'XM5354/Modnet_models', 'revision': '71aca6d04ed0267b4b12bde776868f2b9fb1d06f', 'license': 'apache-2.0', 'files': 1, 'total_bytes': 26255603}
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+{'weights_dir': '/content/weights/modnet-photographic-portrait-matting', 'fetched': ['modnet_photographic_portrait_matting.ckpt']}
+{'verified_files': 1, 'revision': '71aca6d04ed0267b4b12bde776868f2b9fb1d06f'}
+{'conversion': {'source': {'path': 'modnet_photographic_portrait_matting.ckpt', 'bytes': 26255603, 'sha256': '7c22235f0925deba15d4d63e53afcb654c47055bbcd98f56e393ab2584007ed8'}, 'audit': {'file': 'modnet_photographic_portrait_matting.ckpt', 'layout': 'torch_legacy', 'pickles': 5, 'header_bytes': 163911, 'globals': ['collections.OrderedDict', 'torch.FloatStorage', 'torch.LongStorage', 'torch._utils._rebuild_tensor_v2'], 'violations': [], 'audit_sha256': '5b9f0ba08490293d6c17b9cef219991e1a6edda31609429679f8dca1af5a7b10'}, 'checkpoint': {'tensors': 751, 'prefix': 'module.', 'aliased_backbone_tensors': 312}, 'converted': [{'path': 'modnet-photographic-portrait-matting.safetensors', 'bytes': 26135396, 'sha256': '0ec6d832a873ea38974077b23920da806cc2e44e5553c7ee12e7cb7b921bcc6b'}], 'seconds': 0.34}}
+{'device': 'cuda', 'source': 'converted from the manifest-verified source checkpoint'}
+[colab] Executing cell 8/12 - modnet_matting-18...
+{'data_source': 'in-code synthetic portraits with exact alpha mattes (seeded numpy + Pillow renderer)', 'splits': {'train': 48, 'validation': 12, 'test': 20}, 'disjoint': True, 'digest': 'e3316235f90c8b7c...'}
+{'train': {'foreground_fraction': 0.339, 'fractional_alpha_fraction': 0.0223, 'sizes': [[512, 512]]}}
+{'validation': {'foreground_fraction': 0.3492, 'fractional_alpha_fraction': 0.0227, 'sizes': [[512, 512]]}}
+{'test': {'foreground_fraction': 0.341, 'fractional_alpha_fraction': 0.0236, 'sizes': [[512, 512]]}}
+{'first_test_record': {'id': 'portrait-02000', 'shape': (512, 512, 3), 'has_alpha': True, 'foreground_fraction': 0.3867}}
+{'sample_pair': {'image': 'outputs/modnet_matting_sample_portrait.png', 'alpha': 'outputs/modnet_matting_sample_alpha.png', 'id': 'portrait-02000'}, 'pairs_csv': 'outputs/modnet_matting_sample_pairs.csv'}
+{'validation': 'record shape, dtype, size range, finiteness and alpha range only. Nothing checks that the image shows a portrait, that the alpha was drawn for that image, or that the alpha marks the person rather than something else -- any RGB image is matted without complaint'}
+{'probe': 'alpha outside [0, 1]', 'rejected': 'records[0]: alpha values must lie in [0, 1], got [0.000, 1.500]'}
+{'probe': 'labelled record not 512 x 512', 'rejected': 'records[0]: a labelled record must be 512 × 512, got 256 × 512'}
+{'probe': 'all-background alphas', 'rejected': 'every alpha is all background; nothing to learn or evaluate'}
+[colab] Executing cell 9/12 - modnet_matting-21...
+{'seconds': 2.4, 'metric': "per-image alpha-matte MAD / MSE / SAD (÷1000) averaged over the records, and MAD over the trimap's unknown band", 'scored_model': 'frozen (pinned weights restored, sha256 39d608640edc...)', 'adapted': False}
+{'baselines_test': {'all_background': {'mad': 0.341011, 'mse': 0.337618, 'sad': 89.3939, 'mad_unknown': 0.515016}, 'all_foreground': {'mad': 0.658989, 'mse': 0.655596, 'sad': 172.7501, 'mad_unknown': 0.484984}}}
+{'frozen_test': {'n_images': 20, 'mad': 0.079384, 'mse': 0.074834, 'sad': 20.81, 'mad_unknown': 0.085393}}
+{'frozen_validation': {'n_images': 12, 'mad': 0.064013, 'mse': 0.060286, 'sad': 16.7806, 'mad_unknown': 0.0913}}
+{'portrait': 'portrait-02000', 'mad': 0.002669, 'mad_unknown': 0.023758}
+{'portrait': 'portrait-02001', 'mad': 0.047213, 'mad_unknown': 0.031042}
+{'portrait': 'portrait-02002', 'mad': 0.013392, 'mad_unknown': 0.036474}
+{'portrait': 'portrait-02003', 'mad': 0.011632, 'mad_unknown': 0.056139}
+{'portrait': 'portrait-02004', 'mad': 0.252338, 'mad_unknown': 0.22604}
+{'portrait': 'portrait-02000', 'model_size': [512, 512], 'foreground_fraction_frozen': 0.388, 'foreground_fraction_reference': 0.3867}
+{'portrait': 'portrait-02001', 'model_size': [512, 512], 'foreground_fraction_frozen': 0.2594, 'foreground_fraction_reference': 0.3005}
+{'output': 'alpha matte in [0, 1] per pixel (sigmoid of the fusion branch; no threshold applied)', 'alpha_shape': (512, 512), 'seconds': 0.04}
+columns: portrait | exact alpha | frozen matte | frozen cut-out on white
+<PIL.Image.Image image mode=RGB size=786x192 at 0x7AD13C6379E0>
+
+[Image saved to: /tmp/tmpv5hyvidk.png]
+<PIL.Image.Image image mode=RGB size=786x192 at 0x7AD13C6379E0>
+
+[Image saved to: /tmp/tmp8mqq8dqb.png]
+[colab] Executing cell 10/12 - modnet_matting-24...
+{'restarted_from_frozen_weights': True, 'frozen_state_sha256': '39d608640edcd93f...', 'adapted': False}
+{'epoch': 0, 'train_loss': None, 'val_loss': 0.8013, 'val_mad': 0.064013, 'val_mad_unknown': 0.0913, 'note': 'frozen model'}
+{'epoch': 1, 'train_loss': 0.1601, 'val_loss': 0.1721, 'parts': {'semantic': 0.0504, 'detail': 0.0615, 'matte': 0.0482}, 'val_mad': 0.012958, 'val_mad_unknown': 0.031401}
+{'epoch': 2, 'train_loss': 0.0932, 'val_loss': 0.0968, 'parts': {'semantic': 0.023, 'detail': 0.0408, 'matte': 0.0294}, 'val_mad': 0.006433, 'val_mad_unknown': 0.020315}
+{'epoch': 3, 'train_loss': 0.0636, 'val_loss': 0.0846, 'parts': {'semantic': 0.0129, 'detail': 0.0302, 'matte': 0.0204}, 'val_mad': 0.005992, 'val_mad_unknown': 0.020052}
+{'epoch': 4, 'train_loss': 0.0559, 'val_loss': 0.0597, 'parts': {'semantic': 0.0105, 'detail': 0.0269, 'matte': 0.0185}, 'val_mad': 0.004054, 'val_mad_unknown': 0.016763}
+{'epoch': 5, 'train_loss': 0.0557, 'val_loss': 0.059, 'parts': {'semantic': 0.0134, 'detail': 0.0248, 'matte': 0.0176}, 'val_mad': 0.004081, 'val_mad_unknown': 0.016101}
+{'epoch': 6, 'train_loss': 0.0476, 'val_loss': 0.0891, 'parts': {'semantic': 0.0087, 'detail': 0.0232, 'matte': 0.0157}, 'val_mad': 0.006576, 'val_mad_unknown': 0.017785}
+{'trainable_parameters': 4263203, 'total_parameters': 6487075, 'steps': 72, 'best_epoch': 5, 'losses': 'upstream supervised losses: semantic (×10), detail (×10), matte L1 + compositional (×1); trimap grown 8 px from the fractional alpha', 'batchnorm': 'running statistics frozen (eval mode) during adaptation', 'seconds': 33.4}
+[colab] Executing cell 11/12 - modnet_matting-27...
+{'mad': {'all_background': 0.341011, 'all_foreground': 0.658989, 'frozen': 0.079384, 'adapted': 0.003509}}
+{'mse': {'all_background': 0.337618, 'all_foreground': 0.655596, 'frozen': 0.074834, 'adapted': 0.001046}}
+{'sad': {'all_background': 89.3939, 'all_foreground': 172.7501, 'frozen': 20.81, 'adapted': 0.92}}
+{'mad_unknown': {'all_background': 0.515016, 'all_foreground': 0.484984, 'frozen': 0.085393, 'adapted': 0.023428}}
+{'validation_mad': {'frozen': 0.064013, 'adapted': 0.004081}, 'validation_loss': {'frozen': 0.8013108372688293, 'kept_epoch': 0.05902193238337835}}
+{'verdict': 'improved', 'delta_test_mad': -0.075875, 'report': 'outputs/modnet_matting_evaluation_report.json'}
+[colab] Executing cell 12/12 - modnet_matting-30...
+{'portrait': 'portrait-02000', 'mad_frozen': 0.0027, 'mad_adapted': 0.0026}
+{'portrait': 'portrait-02001', 'mad_frozen': 0.0472, 'mad_adapted': 0.0019}
+columns: portrait | exact alpha | frozen matte | adapted matte | adapted cut-out on white
+<PIL.Image.Image image mode=RGB size=984x192 at 0x7AD1014D3EF0>
+
+[Image saved to: /tmp/tmpvvzccm6b.png]
+<PIL.Image.Image image mode=RGB size=984x192 at 0x7AD1013E3FE0>
+
+[Image saved to: /tmp/tmp7_moupwj.png]
+{'artifact': 'outputs/modnet_matting_adapter', 'format': 'org.valcorza.modnet-matting.adapter.v1', 'trainable': 'branches', 'tensors': 76, 'bytes': 17060652, 'sha256': '9cde6d23a61e5b99...'}
+{'reload_parity': {'mad_diff': 0.0, 'metrics_identical': True, 'max_abs_matte_diff': 0.0}, 'reloaded_best_epoch': 5}
+outputs/:
+  - outputs/modnet_matting_adapter/adapter.safetensors (16660.8 KB)
+  - outputs/modnet_matting_adapter/manifest.json (7.1 KB)
+  - outputs/modnet_matting_cutout_adapted_portrait-02000.png (21.4 KB)
+  - outputs/modnet_matting_cutout_adapted_portrait-02001.png (26.5 KB)
+  - outputs/modnet_matting_cutout_frozen_portrait-02000.png (21.4 KB)
+  - outputs/modnet_matting_cutout_frozen_portrait-02001.png (39.7 KB)
+  - outputs/modnet_matting_cutout_reference_portrait-02000.png (17.3 KB)
+  - outputs/modnet_matting_cutout_reference_portrait-02001.png (22.7 KB)
+  - outputs/modnet_matting_evaluation_report.json (19.0 KB)
+  - outputs/modnet_matting_matte_adapted_portrait-02000.png (10.1 KB)
+  - outputs/modnet_matting_matte_adapted_portrait-02001.png (11.5 KB)
+  - outputs/modnet_matting_matte_frozen_portrait-02000.png (8.1 KB)
+  - outputs/modnet_matting_matte_frozen_portrait-02001.png (16.4 KB)
+  - outputs/modnet_matting_matte_reference_portrait-02000.png (7.7 KB)
+  - outputs/modnet_matting_matte_reference_portrait-02001.png (8.5 KB)
+  - outputs/modnet_matting_predictions.json (1.3 KB)
+  - outputs/modnet_matting_result.json (2.9 KB)
+  - outputs/modnet_matting_sample_alpha.png (7.7 KB)
+  - outputs/modnet_matting_sample_pairs.csv (1.2 KB)
+  - outputs/modnet_matting_sample_portrait.png (232.3 KB)
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/modnet-matting-pipeline-90377dc-6a7589/modnet_matting_colab_90377dc_colab-cli-t4_output.ipynb'...

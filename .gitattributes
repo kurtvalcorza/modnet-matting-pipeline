@@ -1,2 +1,5 @@
 # Snapshot files are digest-verified byte-for-byte against dimer-base-manifest.json; never convert their line endings.
 weights/** -text
+
+# Execution evidence is recorded byte-for-byte (SHA-256 cited in docs/release-verification.md); never convert its line endings.
+docs/execution-evidence/** -text

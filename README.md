@@ -70,7 +70,7 @@ Tests are offline: crafted pickles in all three layouts (zip, plain, legacy mult
 
 ## Release status
 
-**Candidate** — the `E2E` notebook was regenerated with an isolated, hash-locked environment and the review fixes, and its new blob awaits a one-pass clean-runtime run; the 2026-09-20 Kaggle Tesla T4 run of the earlier blob `ab5bea58` needed a manual restart after the install cell and is recorded as history in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but were never the evidence; the hosted run is. A later change to the carried modules or the notebook returns the status to Candidate until re-verified.
+**Candidate** — the `E2E` notebook was regenerated with an isolated, hash-locked environment and the review fixes, and the review-fix blob `9d63ce15dc06` (commit `90377dc`) completed one pass with no restart and 0 errors on a fresh Colab Tesla T4 on 2026-10-08 (Colab CLI sequential execution, 12/12 code cells, 153.1 s; frozen test MAD 0.0794 → adapted 0.0035, reload parity 0.0); REL12 (hosted BYOD) is pending; the 2026-09-20 Kaggle Tesla T4 run of the earlier blob `ab5bea58` needed a manual restart after the install cell and is recorded as history in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but were never the evidence; the hosted run is. A later change to the carried modules or the notebook returns the status to Candidate until re-verified.
 
 ## Licensing
 
