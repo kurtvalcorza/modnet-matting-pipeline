@@ -265,20 +265,45 @@ def sample_dataset(*, counts: Mapping[str, int] | None = None, size: int = SAMPL
     return out
 
 
+def split_sizes(n_records: int, fractions: tuple[float, float] = (0.7, 0.15)) -> tuple[int, int, int]:
+    """Train / validation / test sizes `split_dataset` gives `n_records` records (validation and test hold at least
+    one record each when there are three or more records)."""
+    if n_records < 3:
+        raise ValueError("at least three labelled records are needed to form train / validation / test splits")
+    n_train = max(1, int(round(n_records * fractions[0])))
+    n_val = max(1, int(round(n_records * fractions[1])))
+    if n_train + n_val >= n_records:
+        n_train = n_records - n_val - 1
+    return n_train, n_val, n_records - n_train - n_val
+
+
+def minimum_pairs(min_train: int, fractions: tuple[float, float] = (0.7, 0.15)) -> int:
+    """The smallest number of labelled pairs whose split leaves at least `min_train` training records."""
+    n = 3
+    while split_sizes(n, fractions)[0] < min_train:
+        n += 1
+    return n
+
+
 def split_dataset(
-    records: Sequence[Mapping[str, Any]], *, seed: int = 0, fractions: tuple[float, float] = (0.7, 0.15)
+    records: Sequence[Mapping[str, Any]],
+    *,
+    seed: int = 0,
+    fractions: tuple[float, float] = (0.7, 0.15),
+    min_train: int | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Seeded shuffle of user records into train / validation / test (validation and test hold at least one
-    record each when there are three or more records)."""
+    record each when there are three or more records). With `min_train`, refuse here — before any model runs —
+    a dataset whose training split would be smaller than that, naming the number of pairs needed."""
     import numpy as np
 
-    if len(records) < 3:
-        raise ValueError("at least three labelled records are needed to form train / validation / test splits")
+    n_train, n_val, _ = split_sizes(len(records), fractions)
+    if min_train is not None and n_train < min_train:
+        raise ValueError(
+            f"{len(records)} labelled pairs give a training split of {n_train}; fine-tuning needs at least {min_train} "
+            f"training records, so supply at least {minimum_pairs(min_train, fractions)} pairs"
+        )
     order = np.random.default_rng(seed).permutation(len(records)).tolist()
-    n_train = max(1, int(round(len(records) * fractions[0])))
-    n_val = max(1, int(round(len(records) * fractions[1])))
-    if n_train + n_val >= len(records):
-        n_train = len(records) - n_val - 1
     shuffled = [dict(records[i]) for i in order]
     return {"train": shuffled[:n_train], "validation": shuffled[n_train : n_train + n_val], "test": shuffled[n_train + n_val :]}
 
