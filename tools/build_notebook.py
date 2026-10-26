@@ -24,8 +24,8 @@ Usage (from the repository root, or with --repo):
     python tools/build_notebook.py --out PATH # write elsewhere (review copies)
 
 The per-repository template is ``tools/notebook_template.py`` and exposes ``TEMPLATE`` (see
-``template_contract`` below). This file is vendored per repository; the fleet copy lives in the
-relay ``shared/`` directory and is the one to edit first.
+``template_contract`` below). This file is vendored per repository.
+Its router refusal channel (DAT20) is applied from ml-worker integrations/dimer/fleet-specs/notebook-router/.
 """
 # ruff: noqa: E501  -- learner-facing prose is kept on single lines so the rendered markdown stays readable
 from __future__ import annotations
@@ -316,6 +316,10 @@ while True:
         _send.send(("done",))
     except BaseException as exc:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if getattr(exc, "dimer_refusal", False):
+            # A refused user input (DAT20): one actionable line goes back, never the traceback.
+            _send.send(("refusal", str(exc)))
+            continue
         frames = exc.__traceback__.tb_next if exc.__traceback__ is not None else None
         _send.send(("error", "".join(traceback.format_exception(type(exc), exc, frames)), f"{type(exc).__name__}: {exc}"))
 """
@@ -323,6 +327,15 @@ while True:
 
 class IsolatedCellError(RuntimeError):
     """A routed cell raised inside the isolated environment; its traceback is printed above."""
+
+
+class IsolatedCellRefusal(Exception):
+    """A routed cell refused a user input (DAT20). IPython renders it through _render_traceback_, so the
+    cell shows the one line Refused: <file>: <reason> and no traceback; as an exception it still stops Run all.
+    """
+
+    def _render_traceback_(self):
+        return [f"Refused: {self}"]
 
 
 class IsolatedRuntime:
@@ -379,6 +392,8 @@ class IsolatedRuntime:
                 self._display(message[1], raw=True)
             elif kind == "upload":
                 self._send.send(("upload", self._colab_upload()))
+            elif kind == "refusal":
+                raise IsolatedCellRefusal(message[1]) from None
             elif kind == "error":
                 sys.stderr.write(message[1])
                 raise IsolatedCellError(message[2]) from None
