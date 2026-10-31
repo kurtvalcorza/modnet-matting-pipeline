@@ -81,7 +81,7 @@ def test_mod_m3_too_few_pairs_refused_at_split_naming_the_minimum() -> None:
 
 def test_mod_m3_byod_cell_uses_the_minimum_before_any_model_runs(nb: dict) -> None:
     section4 = _cell_with(nb, "splits = sample_dataset()")
-    assert "split_dataset(load_byod_dataset(byod_path), seed=0, min_train=MIN_RECORDS)" in section4
+    assert "split_dataset(byod_records, seed=0, min_train=MIN_RECORDS)" in section4
     assert "pipe." not in section4, "Section 4 must not run the model"
     md = _markdown(nb)
     assert "at least four pairs" not in md and "at least six pairs" in md

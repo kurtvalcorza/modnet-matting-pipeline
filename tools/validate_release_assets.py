@@ -49,7 +49,7 @@ CODE_MARKERS = (
     # Stage 4: rendered sample portraits, roles, the pinned photographs, sample pair, refusal probes
     "USE_BYOD = False",
     "splits = sample_dataset()",
-    "splits = split_dataset(load_byod_dataset(byod_path), seed=0, min_train=MIN_RECORDS)",
+    "splits = split_dataset(byod_records, seed=0, min_train=MIN_RECORDS)",
     "probe_records = [render_portrait(SAMPLE_SEEDS['test'] + i) for i in range(4)] if USE_BYOD else test_records[:4]",
     "dataset_report = dataset_manifest(",
     "write_sample_pair(test_records[0], 'outputs/modnet_matting_sample_portrait.png', 'outputs/modnet_matting_sample_alpha.png')",
