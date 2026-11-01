@@ -237,7 +237,7 @@ def test_cancelled_or_multiple_upload_is_one_refused_line(monkeypatch, tmp_path,
 def test_dataset_genuine_internal_error_keeps_its_traceback(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "google.colab", None)
     (tmp_path / "ok.zip").write_bytes(_zip({"pairs.csv": "id,image,alpha\n"}))
-    source = _cell(BYOD_CELL).replace("        splits = split_dataset(load_byod_dataset(byod_path)", "        raise RuntimeError('internal bug')\n        splits = split_dataset(load_byod_dataset(byod_path)", 1)
+    source = _cell(BYOD_CELL).replace("        try:\n            byod_records = load_byod_dataset(byod_path)", "        raise RuntimeError('internal bug')\n        try:\n            byod_records = load_byod_dataset(byod_path)", 1)
     with pytest.raises(RuntimeError, match="internal bug") as caught:
         _section4(monkeypatch, tmp_path, str(tmp_path / "ok.zip"), source)
     assert not getattr(caught.value, "dimer_refusal", False)
@@ -251,6 +251,103 @@ def test_scripted_refusal_input_is_the_real_etc_hostname(monkeypatch, tmp_path):
     with pytest.raises(ValueError) as caught:
         _section4(monkeypatch, tmp_path, "/etc/hostname")
     assert _refusal_line(caught.value).startswith("Refused: hostname: expected a labelled-portrait .zip archive")
+
+
+# --- the catches are narrow: only bad input is refused; an internal TypeError/KeyError/OSError keeps its traceback -----
+
+
+def test_the_byod_catches_are_narrow_in_the_notebook_source():
+    dataset = _cell(BYOD_CELL)
+    dataset = dataset[dataset.index("if USE_BYOD:\n") : dataset.index("else:\n    splits = sample_dataset()")]
+    photo = _cell(PHOTO_CELL)
+    photo = photo[photo.index("if USE_BYOD_PHOTO:\n") : photo.index("    frozen_photo = ")]
+    caught = {}
+    for name, branch in (("dataset", dataset), ("photo", photo)):
+        caught[name] = [line.strip() for line in branch.splitlines() if line.strip().startswith("except ")]
+        assert not [c for c in caught[name] if "KeyError" in c], caught
+        assert branch.count("    except ValueError as exc:\n") == 1
+    assert [c for c in caught["dataset"] if "TypeError" in c or "OSError" in c] == ["except (OSError, zipfile.BadZipFile) as exc:", "except TypeError as exc:"]
+    assert [c for c in caught["photo"] if "TypeError" in c or "OSError" in c] == ["except OSError as exc:"]
+    assert "        try:\n            byod_records = load_byod_dataset(byod_path)\n        except (OSError, zipfile.BadZipFile) as exc:\n" in dataset
+    assert "        except TypeError as exc:\n            raise BYODRefusal(byod_name, f'a pairs.csv row has fewer cells than the header" in dataset
+    assert "        try:\n            photo = load_photo(photo_path, record_id='own-photograph')\n        except OSError as exc:\n" in photo
+
+
+def _png(mode: str, size=(32, 32), value=128) -> bytes:
+    buffer = io.BytesIO()
+    Image.new(mode, size, value).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("entries", "rule"),
+    [
+        ({"pairs.csv": "id,image,alpha\np1,p1.png,p1_a.png\n", "p1.png": b"not a picture", "p1_a.png": b"x"}, "the archive cannot be read (UnidentifiedImageError: "),
+        ({"pairs.csv": "id,image,alpha\np1,p1.png\n", "p1.png": b"x"}, "a pairs.csv row has fewer cells than the header (TypeError: "),
+    ],
+    ids=["undecodable image", "short row"],
+)
+def test_a_bad_archive_member_is_still_one_refused_line(monkeypatch, tmp_path, entries, rule):
+    monkeypatch.setitem(sys.modules, "google.colab", None)
+    (tmp_path / "bad.zip").write_bytes(_zip(entries))
+    with pytest.raises(ValueError) as caught:
+        _section4(monkeypatch, tmp_path, str(tmp_path / "bad.zip"))
+    line = _refusal_line(caught.value)
+    assert line.startswith(f"Refused: bad.zip: {rule}"), line
+    assert sorted(p.name for p in (tmp_path / "outputs").iterdir()) == []
+
+
+def _good_zip(n: int = 12) -> bytes:
+    rows = ["id,image,alpha"] + [f"p{i},p{i}.png,p{i}_a.png" for i in range(n)]
+    entries: dict = {"pairs.csv": "\n".join(rows) + "\n"}
+    for i in range(n):
+        entries[f"p{i}.png"] = _png("RGB", value=(10 * i, 20, 30))
+        entries[f"p{i}_a.png"] = _png("L", value=128 + i)
+    return _zip(entries)
+
+
+@pytest.mark.parametrize("error", [TypeError("internal helper bug"), KeyError("internal key"), OSError("internal I/O bug")], ids=["TypeError", "KeyError", "OSError"])
+def test_an_internal_error_after_the_loader_keeps_its_traceback_and_clears_nothing(monkeypatch, tmp_path, error):
+    import traceback
+
+    monkeypatch.setitem(sys.modules, "google.colab", None)
+    (tmp_path / "ok.zip").write_bytes(_good_zip())
+    seen: list = []
+
+    def broken_split(records, **kwargs):
+        seen.append(len(records))
+        raise error
+
+    monkeypatch.setattr(samples_module, "split_dataset", broken_split)
+    with pytest.raises(type(error)) as caught:
+        _section4(monkeypatch, tmp_path, str(tmp_path / "ok.zip"))
+    assert seen == [12]  # the loader accepted the archive; the error comes from the helper after it
+    assert caught.value is error and not getattr(caught.value, "dimer_refusal", False)
+    rendered = "".join(traceback.format_exception(caught.value))
+    assert rendered.startswith("Traceback") and "broken_split" in rendered and "Refused:" not in rendered
+    assert (tmp_path / "outputs" / f"{STEM}_result.json").exists()  # nothing is removed for an internal error
+
+
+@pytest.mark.parametrize("error", [TypeError("byod_file bug"), OSError("byod_file I/O bug")], ids=["TypeError", "OSError"])
+def test_an_internal_error_in_the_photo_branch_keeps_its_traceback(monkeypatch, tmp_path, error):
+    monkeypatch.setitem(sys.modules, "google.colab", None)
+    Image.new("RGB", (40, 30)).save(tmp_path / "me.png")
+
+    def buggy_byod_file(path, kind, suffixes=()):
+        raise error
+
+    monkeypatch.chdir(tmp_path)
+    _seed_outputs(tmp_path)
+    helpers = _cell(BYOD_CELL)
+    ns = {**_base_namespace(), **PHOTO_EARLIER, "splits": "kept"}
+    exec(compile(helpers[: helpers.index("os.makedirs('outputs'")], "<section 4 helpers>", "exec"), ns)
+    ns.update(USE_BYOD_PHOTO=True, BYOD_PHOTO_PATH=str(tmp_path / "me.png"), byod_file=buggy_byod_file)
+    source = _cell(PHOTO_CELL)
+    branch = source[source.index("if USE_BYOD_PHOTO:\n") : source.index("    frozen_photo = ")]
+    with pytest.raises(type(error)) as caught:
+        exec(compile(branch, "<section 10>", "exec"), ns)
+    assert caught.value is error and not getattr(caught.value, "dimer_refusal", False)
+    assert ns["photo_report"] == "old" and (tmp_path / "outputs" / f"{STEM}_result.json").exists()  # nothing is cleared
 
 
 # --- Section 8 own photograph ------------------------------------------------------------------------------------
