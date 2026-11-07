@@ -1,0 +1,72 @@
+{
+  "repo": "modnet-matting-pipeline",
+  "sha": "df323364f218c1dd556bced466aea7fabf7804db",
+  "notebook": "tutorials/modnet_matting_colab.ipynb",
+  "blob": "69cde3766ab0bd601fd4ab94de4ef388cb84662b",
+  "gpu": "T4",
+  "session": "suite-modnet-df32336-6a75",
+  "started_utc": "2026-11-03T01:27:01+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "USE_BYOD",
+      "from": "False",
+      "to": "True"
+    },
+    {
+      "name": "BYOD_PATH",
+      "from": "''",
+      "to": "'/etc/hostname'"
+    }
+  ],
+  "run_copy_blob": "a6f402d094be2f4d4bdc089b02de1c5648e9cd82",
+  "run_copy_sha256": "243669ad8f579eedf3cfd4cb9edbcc48eb2d1a2f7e8f0537d0c716e57ffb4df4",
+  "run_copy_note": "refusal run: the run copy is the committed notebook with the listed assignment overrides, cut immediately after the refusal cell and re-serialised (nbformat layout); input_unchanged compares against that copy",
+  "truncated_after_cell": "modnet_matting-18",
+  "refusal_cell_ref": "modnet_matting-18",
+  "refusal_cell_index": 8,
+  "cells_dropped": 13,
+  "code_cells_dropped": 4,
+  "original_sha256": "58cdbb6fcade778fa58541b8571dd4358a3a552ffe27f6a622f90279ea48000d",
+  "status": "[suite-modnet-df32336-6a75] gpu-t4-s-euw4c0-16uenoeceizzv | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 92.1,
+  "input_unchanged": true,
+  "executed_file": "modnet_matting_colab_df32336_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "log_total": 8,
+  "code_cells": 8,
+  "executed_cells": 4,
+  "errors": [
+    {
+      "cell": "modnet_matting-18",
+      "ename": "IsolatedCellRefusal",
+      "evalue": "hostname: expected a labelled-portrait .zip archive (pairs.csv + images + alpha PNGs) ending in .zip; fix the input and run this cell again (the earlier results of this session and their outputs/ files were removed)."
+    }
+  ],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "e9fdd9c8dc36a1a42a091d8e8a56a695f8e6fdcdd62a61b98fe527214542ba24",
+  "log_sequential_complete": true,
+  "mode": "expect_refusal",
+  "refusal_line": "Refused: hostname: expected a labelled-portrait .zip archive (pairs.csv + images + alpha PNGs) ending in .zip; fix the input and run this cell again (the earlier results of this session and their outputs/ files were removed).",
+  "halting_cell_index": 8,
+  "halting_cell_id": "modnet_matting-18",
+  "error_cells": [
+    8
+  ],
+  "refusal_fail_reasons": [],
+  "refusal_ok": true,
+  "verdict": "PASS"
+}
